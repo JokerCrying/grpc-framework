@@ -4,8 +4,10 @@ from .core import Service, RPCFunctionMetadata
 from .core.enums import Interaction
 from .core.lifecycle import LifecycleManager
 from .core.middleware import MiddlewareManager
+from .core.interceptors import RequestContextInterceptor
+from .core.request import Request
 from .config import GRPCFrameworkConfig
-from typing import Optional, Type, Union, Callable
+from typing import Optional, Type, Union, Callable, Any, List
 
 
 class GRPCFramework:
@@ -17,10 +19,17 @@ class GRPCFramework:
         self._services = {
             self.config.app_service_name: {}
         }
+        # make interceptors
+        server_interceptors = [
+            RequestContextInterceptor(self)
+        ]
+        if self.config.interceptors is not None:
+            server_interceptors.extend(self.config.interceptors)
+        # make grpc aio server
         self._server = grpc_aio.server(
             migration_thread_pool=self.config.executor,
             handlers=self.config.grpc_handlers,
-            interceptors=self.config.interceptors,
+            interceptors=server_interceptors,
             options=self.config.grpc_options,
             maximum_concurrent_rpcs=self.config.maximum_concurrent_rpc,
             compression=self.config.grpc_compression
@@ -38,6 +47,9 @@ class GRPCFramework:
             codec=self.config.codec,
             converter=self.config.converter
         )
+        # request hook
+        self.before_request_hooks: List[Callable[[Request], Any]] = []
+        self.after_request_hooks: List[Callable[[], Any]] = []
 
     def method(self, request_interaction: Interaction, response_interaction: Interaction):
         def decorator(func):
@@ -74,6 +86,14 @@ class GRPCFramework:
         if method_meta is None:
             raise RuntimeError(f'unknown {method_meta} in registered services.')
         return method_meta
+
+    def before_request(self, call: Callable[[Request], Any]):
+        self._before_request_hooks.append(call)
+        return call
+
+    def after_request(self, call: Callable[[], Any]):
+        self._after_request_hooks.append(call)
+        return call
 
     def __repr__(self):
         return f'<gRPC Framework name={self.config.name}>'

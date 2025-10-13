@@ -1,9 +1,9 @@
-import re
+import grpc
 from grpc.aio import ServicerContext
 from contextvars import ContextVar
 from typing import Type, TYPE_CHECKING, Union, Optional, Any
 from dataclasses import dataclass
-from ...types import StrAnyDict
+from ...types import StrAnyDict, BytesLike
 
 
 # Default Request Context Var
@@ -16,7 +16,14 @@ _current_request: REQUEST_CONTEXT_VAR_TYPE = ContextVar('current_request', defau
 
 @dataclass
 class PeerInfo:
-    """Store parsed peer information"""
+    """Store parsed peer information
+
+    Args:
+        ip_version: ipv4/ipv5
+        ip: ip address
+        port: port
+        raw: original data, .temp: ip_version:ip:port
+    """
     ip_version: Optional[str] = None
     ip: Optional[str] = None
     port: Optional[int] = None
@@ -24,49 +31,56 @@ class PeerInfo:
 
 
 class Request:
-    """gRPC Request Instance"""
+    """gRPC Request Instance
 
-    def __init__(self):
-        self.peer_info: PeerInfo = PeerInfo()
-        self.metadata: StrAnyDict = {}
+    Args:
+        peer_info_dict: a dict for build PeerInfo instance, it represents the network information in this request
+        full_method: request address, .temp: /package.service/method
+        request_bytes: original request data, maybe Protobuf/JsonBytes/pickle or more and more types
+        metadata: a dict represents request metadata in this request
+        compression: grpc.Compression
+        grpc_context: grpc's context in this request
+    """
+
+    def __init__(
+            self,
+            peer_info_dict: Optional[StrAnyDict] = None,
+            full_method: Optional[str] = None,
+            metadata: Optional[StrAnyDict] = None,
+            compression: Optional[grpc.Compression] = None,
+            grpc_context: Optional[ServicerContext] = None
+    ):
+        self.peer_info: PeerInfo = PeerInfo(**peer_info_dict)
+        self.metadata: StrAnyDict = metadata or {}
         self.package: Optional[str] = None
         self.service_name: Optional[str] = None
         self.method_name: Optional[str] = None
-        self.full_method: Optional[str] = None
-        self.request_bytes: Optional[bytes] = None
-        self.compression: Optional[str] = None
-        self.timeout: Optional[float] = None
-        self._grpc_context: Optional[ServicerContext] = None
+        self.full_method: Optional[str] = full_method
+        self.compression: Optional[str] = compression
+        self.grpc_context: Optional[ServicerContext] = grpc_context
         self.state: StrAnyDict = {}
+        # set current request
+        _current_request.set(self)
 
-    @property
-    def grpc_context(self) -> ServicerContext:
-        return self._grpc_context
+    def from_handler_details(self, handler_details):
+        # its just first step to parse full request instance
+        # methods parse
+        self.full_method = handler_details.method
+        self._parse_pkg_svc_method()
+        # metadata parse
+        metadata = {
+            i.key: i.value for i in
+            handler_details.invocation_metadata
+        }
+        self.metadata = metadata
 
-    @classmethod
-    async def from_grpc_context(cls, context: ServicerContext):
-        instance = cls()
-        instance._grpc_context = context
+    def from_context(self, context):
+        # parse peer || network information
+        peer_raw = context.peer()
+        self._parse_peer(peer_raw)
 
-        # parse peer
-        instance._parse_peer(context.peer())
-
-        # load metadata
-        metadata = await context.invocation_metadata()
-        instance.metadata = dict(metadata) if metadata else {}
-
-        # parse full_method
-        full_method = getattr(context, "_rpc_event", None)
-        if full_method and hasattr(full_method, "call_details"):
-            instance._parse_method(full_method.call_details.method)
-
-        # parse other
-        instance.compression = getattr(context, "compression", lambda: None)()
-        instance.timeout = context.time_remaining()
-
-        # inject the current request instance ContextVar
-        _current_request.set(instance)
-        return instance
+    def set_request_bytes(self, request_bytes: BytesLike):
+        self.request_bytes = request_bytes
 
     @classmethod
     def current(cls) -> 'Request':
@@ -78,50 +92,31 @@ class Request:
             )
         return req
 
-    def _parse_peer(self, peer_str: str) -> None:
-        """parse peer string"""
-        self.peer_info.raw = peer_str
-        if not peer_str:
+    def _parse_pkg_svc_method(self):
+        if not self.full_method:
             return
-
-        if peer_str.startswith("ipv4:"):
-            m = re.match(r"ipv4:(?P<ip>[^:]+):(?P<port>\d+)", peer_str)
-            if m:
-                self.peer_info.ip_version = "ipv4"
-                self.peer_info.ip = m.group("ip")
-                self.peer_info.port = int(m.group("port"))
-        elif peer_str.startswith("ipv6:"):
-            m = re.match(r"ipv6:\[(?P<ip>[^\]]+)\]:(?P<port>\d+)", peer_str)
-            if m:
-                self.peer_info.ip_version = "ipv6"
-                self.peer_info.ip = m.group("ip")
-                self.peer_info.port = int(m.group("port"))
-        elif peer_str.startswith("unix:"):
-            self.peer_info.ip_version = "unix"
-            self.peer_info.ip = peer_str.split(":", 1)[1]
-            self.peer_info.port = 0
-
-    def _parse_method(self, full_method: str) -> None:
-        """parse full method，eg. /helloworld.Greeter/SayHello"""
-        self.full_method = full_method
-        if not full_method:
-            return
-
-        parts = full_method.strip("/").split("/")
-        if len(parts) != 2:
-            return
-
-        service_path, method = parts
-        self.method_name = method
-
-        # split package & service
-        if "." in service_path:
-            pkg, svc = service_path.rsplit(".", 1)
+        pkg_svc, method = self.full_method.strip('/').split('/')
+        pkg_svc_split = pkg_svc.split('.')
+        if len(pkg_svc_split) == 1:
+            self.service_name = pkg_svc_split[0]
+        else:
+            pkg, svc = pkg_svc_split[:2]
             self.package = pkg
             self.service_name = svc
-        else:
-            self.package = None
-            self.service_name = service_path
+        self.method_name = method
+
+    def _parse_peer(self, raw: str):
+        if not raw:
+            self.peer_info = PeerInfo()
+        try:
+            ip_version, rest = raw.split(':', 1)
+            if ':' in rest:
+                ip, port = rest.rsplit(':', 1)
+                self.peer_info = PeerInfo(ip_version=ip_version, ip=ip, port=int(port), raw=raw)
+            else:
+                self.peer_info = PeerInfo(ip_version=ip_version, raw=raw)
+        except Exception:
+            self.peer_info = PeerInfo(raw=raw)
 
     def __repr__(self):
         return (

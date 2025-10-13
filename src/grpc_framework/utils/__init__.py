@@ -1,5 +1,6 @@
 from .logger import get_logger, logger
 from .config_parser import add_config_parser, parse_config, CONFIG_PARSER_TYPE, ConfigParserOptions
+from .sync2async_utils import Sync2AsyncUtils
 
 __all__ = [
     # logger
@@ -10,5 +11,8 @@ __all__ = [
     'add_config_parser',
     'parse_config',
     'CONFIG_PARSER_TYPE',
-    'ConfigParserOptions'
+    'ConfigParserOptions',
+
+    # Sync To Async
+    'Sync2AsyncUtils'
 ]
