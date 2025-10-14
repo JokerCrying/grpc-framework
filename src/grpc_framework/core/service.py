@@ -1,7 +1,7 @@
 import inspect
 from ..types import OptionalStr
 from .enums import Interaction
-from typing import TypedDict, Callable
+from typing import TypedDict, Callable, Optional, Type
 
 __all__ = [
     'rpc',
@@ -26,6 +26,7 @@ class RPCFunctionMetadata(TypedDict):
     handler: Callable
     request_interaction: Interaction
     response_interaction: Interaction
+    rpc_service: Optional['Service', Type['Service']]
 
 
 class Service:
@@ -45,7 +46,8 @@ class Service:
             self._methods[func_name] = RPCFunctionMetadata(
                 handler=func,
                 request_interaction=request_interaction,
-                response_interaction=response_interaction
+                response_interaction=response_interaction,
+                rpc_service=self
             )
             return func
 
@@ -57,9 +59,11 @@ class Service:
         methods = {}
         for name, func in inspect.getmembers(cls, predicate=inspect.isfunction):
             if getattr(func, "is_rpc_method", False):
+                rpc_meta = func.__rpc_meta__
                 methods[name] = RPCFunctionMetadata(
                     handler=func,
-                    request_interaction=func.__rpc_meta__['request_interaction'],
-                    response_interaction=func.__rpc_meta__['response_interaction']
+                    request_interaction=rpc_meta['request_interaction'],
+                    response_interaction=rpc_meta['response_interaction'],
+                    rpc_service=cls
                 )
         return methods

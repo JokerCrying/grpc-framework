@@ -5,9 +5,9 @@ from .core.enums import Interaction
 from .core.lifecycle import LifecycleManager
 from .core.middleware import MiddlewareManager
 from .core.interceptors import RequestContextInterceptor
-from .core.request import Request
+from .core.context import RequestContextManager
 from .config import GRPCFrameworkConfig
-from typing import Optional, Type, Union, Callable, Any, List
+from typing import Optional, Type, Union
 
 
 class GRPCFramework:
@@ -48,15 +48,18 @@ class GRPCFramework:
             converter=self.config.converter
         )
         # request hook
-        self.before_request_hooks: List[Callable[[Request], Any]] = []
-        self.after_request_hooks: List[Callable[[], Any]] = []
+        self._request_context_manager = RequestContextManager(self)
+        self.before_request = self._request_context_manager.before_request
+        self.after_request = self._request_context_manager.after_request
+        self.start_request_context = self._request_context_manager.context
 
     def method(self, request_interaction: Interaction, response_interaction: Interaction):
         def decorator(func):
             self._services[self.config.app_service_name][func.__name__] = RPCFunctionMetadata(
                 handler=func,
                 request_interaction=request_interaction,
-                response_interaction=response_interaction
+                response_interaction=response_interaction,
+                rpc_service=None
             )
             return func
 
@@ -86,14 +89,6 @@ class GRPCFramework:
         if method_meta is None:
             raise RuntimeError(f'unknown {method_meta} in registered services.')
         return method_meta
-
-    def before_request(self, call: Callable[[Request], Any]):
-        self._before_request_hooks.append(call)
-        return call
-
-    def after_request(self, call: Callable[[], Any]):
-        self._after_request_hooks.append(call)
-        return call
 
     def __repr__(self):
         return f'<gRPC Framework name={self.config.name}>'
