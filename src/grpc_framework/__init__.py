@@ -5,6 +5,8 @@ from .config import GRPCFrameworkConfig
 
 from .core.request import Request
 
+from .core.response import Response
+
 from .core.enums import Interaction
 
 from .core.middleware import BaseMiddleware
@@ -33,6 +35,9 @@ __all__ = [
 
     # request
     'Request',
+
+    # Response
+    'Response',
 
     # enums
     'Interaction',

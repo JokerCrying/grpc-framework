@@ -32,7 +32,6 @@ class AsyncReactiveContext(ReactiveContextMinix, AbstractAsyncContextManager):
 
     async def __aexit__(self, exc_type, exc_value, traceback, /):
         self.active = False
-        self.after_hooks(None)
 
     async def send(self, value):
         if not self.active:

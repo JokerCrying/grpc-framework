@@ -2,12 +2,13 @@ import inspect
 from typing import Optional, TYPE_CHECKING, Callable, Any, List
 from ...utils import Sync2AsyncUtils, AsyncReactiveContext
 from ..request.request import Request
+from ..response.response import Response
 
 if TYPE_CHECKING:
     from ...application import GRPCFramework
 
 BEFORE_HOOK_TYPE = Callable[[Request], Any]
-AFTER_HOOK_TYPE = Callable[[Any], Any]
+AFTER_HOOK_TYPE = Callable[[Response], Any]
 
 
 class RequestContextManager:
@@ -39,7 +40,7 @@ class RequestContextManager:
             else:
                 await self.s2a.run_function(call, request)
 
-    async def on_after_request(self, response):
+    async def on_after_request(self, response: Response):
         for call in self._after_request_handlers:
             if inspect.iscoroutinefunction(call):
                 await call(response)
