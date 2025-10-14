@@ -1,10 +1,10 @@
 import inspect
 from typing import Optional, TYPE_CHECKING, Callable, Any, List
 from ...utils import Sync2AsyncUtils, AsyncReactiveContext
+from ..request.request import Request
 
 if TYPE_CHECKING:
     from ...application import GRPCFramework
-    from ..request.request import Request
 
 BEFORE_HOOK_TYPE = Callable[[Request], Any]
 AFTER_HOOK_TYPE = Callable[[Any], Any]

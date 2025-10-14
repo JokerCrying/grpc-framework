@@ -4,7 +4,10 @@ from .serialization import (
     ORJSONCodec, JSONCodec, ProtobufCodec,
     JsonConverter, ProtobufConverter
 )
-from .service import rpc, Service, RPCFunctionMetadata
+from .service import (
+    rpc, Service, RPCFunctionMetadata,
+    unary_unary, unary_stream, stream_unary, stream_stream
+)
 
 __all__ = [
     # serialization impls
@@ -21,5 +24,9 @@ __all__ = [
     # service
     'rpc',
     'Service',
-    'RPCFunctionMetadata'
+    'RPCFunctionMetadata',
+    'stream_unary',
+    'stream_stream',
+    'unary_unary',
+    'unary_stream'
 ]

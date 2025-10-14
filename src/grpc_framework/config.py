@@ -54,11 +54,11 @@ class GRPCFrameworkConfig:
     add_health_check: bool = False
     app_service_name: str = 'RootService'
     executor: Union[ThreadPoolExecutor, ProcessPoolExecutor] = ThreadPoolExecutor(max_workers=(os.cpu_count() * 2) - 1)
-    grpc_handlers: Optional[Sequence[grpc.GenericRpcHandler]] = None,
-    interceptors: Optional[Sequence[Any]] = None,
-    grpc_options: Optional[ChannelArgumentType] = None,
-    maximum_concurrent_rpc: Optional[int] = None,
-    grpc_compression: Optional[grpc.Compression] = None,
+    grpc_handlers: Optional[Sequence[grpc.GenericRpcHandler]] = None
+    interceptors: Optional[Sequence[grpc.ServerInterceptor]] = None
+    grpc_options: Optional[ChannelArgumentType] = None
+    maximum_concurrent_rpc: Optional[int] = None
+    grpc_compression: Optional[grpc.Compression] = None
 
     @classmethod
     def from_file(cls, filename: FilePath, options: ConfigParserOptions = None) -> 'GRPCFrameworkConfig':

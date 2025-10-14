@@ -1,17 +1,24 @@
 import inspect
 from ..types import OptionalStr
 from .enums import Interaction
-from typing import TypedDict, Callable, Optional, Type
+from typing import TypedDict, Callable, Optional, Type, Union
 
 __all__ = [
     'rpc',
     'RPCFunctionMetadata',
-    'Service'
+    'Service',
+    'unary_stream',
+    'unary_unary',
+    'stream_unary',
+    'stream_stream'
 ]
 
 
 def rpc(request_interaction: Interaction, response_interaction: Interaction):
+    """register a rpc method in a cbv mode."""
+
     def decorator(func):
+        """remark rpc method and record rpc metadata"""
         func.is_rpc_method = True
         func.__rpc_meta__ = {
             'request_interaction': request_interaction,
@@ -22,11 +29,31 @@ def rpc(request_interaction: Interaction, response_interaction: Interaction):
     return decorator
 
 
+def unary_unary(func):
+    """register a unary_unary method in a cbv mode."""
+    return rpc(Interaction.unary, Interaction.unary)(func)
+
+
+def unary_stream(func):
+    """register a unary_stream method in a cbv mode."""
+    return rpc(Interaction.unary, Interaction.stream)(func)
+
+
+def stream_unary(func):
+    """register a stream_unary method in a cbv mode."""
+    return rpc(Interaction.stream, Interaction.unary)(func)
+
+
+def stream_stream(func):
+    """register a stream_stream method in a cbv mode."""
+    return rpc(Interaction.stream, Interaction.stream)(func)
+
+
 class RPCFunctionMetadata(TypedDict):
     handler: Callable
     request_interaction: Interaction
     response_interaction: Interaction
-    rpc_service: Optional['Service', Type['Service']]
+    rpc_service: Optional[Union['Service', Type['Service']]]
 
 
 class Service:
