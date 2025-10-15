@@ -6,6 +6,7 @@ from .core.lifecycle import LifecycleManager
 from .core.middleware import MiddlewareManager
 from .core.interceptors import RequestContextInterceptor
 from .core.context import RequestContextManager
+from .core.adaptor import GRPCAdaptor
 from .config import GRPCFrameworkConfig
 from typing import Optional, Type, Union
 
@@ -52,6 +53,8 @@ class GRPCFramework:
         self.before_request = self._request_context_manager.before_request
         self.after_request = self._request_context_manager.after_request
         self.start_request_context = self._request_context_manager.context
+        # adaptor
+        self._adaptor = GRPCAdaptor(self)
 
     def method(self, request_interaction: Interaction, response_interaction: Interaction):
         def decorator(func):
