@@ -9,6 +9,23 @@ from .core.context import RequestContextManager
 from .core.adaptor import GRPCAdaptor
 from .config import GRPCFrameworkConfig
 from typing import Optional, Type, Union
+from contextvars import ContextVar
+
+
+class _EmptyApplication: ...
+
+
+CURRENT_APP_TYPE = Union['GRPCFramework', Type['_EmptyApplication']]
+
+_current_app: ContextVar[CURRENT_APP_TYPE] = ContextVar('current_app', default=_EmptyApplication)
+
+
+def get_current_app() -> 'GRPCFramework':
+    """get current application"""
+    app = _current_app.get()
+    if app is _EmptyApplication:
+        raise RuntimeError('application has not ready for start or init, check it please.')
+    return app
 
 
 class GRPCFramework:
@@ -48,6 +65,8 @@ class GRPCFramework:
             codec=self.config.codec,
             converter=self.config.converter
         )
+        self.render_content = self._serializer.serialize
+        self.load_content = self._serializer.deserialize
         # request hook
         self._request_context_manager = RequestContextManager(self)
         self.before_request = self._request_context_manager.before_request
@@ -55,6 +74,8 @@ class GRPCFramework:
         self.start_request_context = self._request_context_manager.context
         # adaptor
         self._adaptor = GRPCAdaptor(self)
+        # set context var
+        _current_app.set(self)
 
     def method(self, request_interaction: Interaction, response_interaction: Interaction):
         def decorator(func):
@@ -92,6 +113,9 @@ class GRPCFramework:
         if method_meta is None:
             raise RuntimeError(f'unknown {method_meta} in registered services.')
         return method_meta
+
+    async def start(self):
+        pass
 
     def __repr__(self):
         return f'<gRPC Framework name={self.config.name}>'

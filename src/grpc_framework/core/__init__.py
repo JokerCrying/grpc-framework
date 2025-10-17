@@ -8,6 +8,10 @@ from .service import (
     rpc, Service, RPCFunctionMetadata,
     unary_unary, unary_stream, stream_unary, stream_stream
 )
+from .adaptor import (
+    GRPCAdaptor, RequestAdaptor,
+    StreamRequest
+)
 
 __all__ = [
     # serialization impls
@@ -28,5 +32,10 @@ __all__ = [
     'stream_unary',
     'stream_stream',
     'unary_unary',
-    'unary_stream'
+    'unary_stream',
+
+    # adaptor
+    'GRPCAdaptor',
+    'RequestAdaptor',
+    'StreamRequest',
 ]

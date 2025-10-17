@@ -3,11 +3,15 @@ from grpc.aio import ServicerContext
 from contextvars import ContextVar
 from typing import Type, TYPE_CHECKING, Union, Optional, Any
 from dataclasses import dataclass
-from ...types import StrAnyDict, BytesLike
+from ...types import StrAnyDict, BytesLike, StrDict
 
 
 # Default Request Context Var
 class _EmptyRequest: ...
+
+
+# Default Request Bytes
+class _EmptyRequestBytes: ...
 
 
 REQUEST_CONTEXT_VAR_TYPE = ContextVar[Union['Request', Type[_EmptyRequest]]]
@@ -36,7 +40,6 @@ class Request:
     Args:
         peer_info_dict: a dict for build PeerInfo instance, it represents the network information in this request
         full_method: request address, .temp: /package.service/method
-        request_bytes: original request data, maybe Protobuf/JsonBytes/pickle or more and more types
         metadata: a dict represents request metadata in this request
         compression: grpc.Compression
         grpc_context: grpc's context in this request
@@ -59,6 +62,7 @@ class Request:
         self.compression: Optional[str] = compression
         self.grpc_context: Optional[ServicerContext] = grpc_context
         self.state: StrAnyDict = {}
+        self.request_bytes: Any = _EmptyRequestBytes
         # set current request
         _current_request.set(self)
 
@@ -84,13 +88,13 @@ class Request:
 
     @classmethod
     def current(cls) -> 'Request':
-        req = _current_request.get()
-        if req is _EmptyRequest:
+        request = _current_request.get()
+        if request is _EmptyRequest:
             raise RuntimeError(
                 "Request.current() be invoked, However, there is no Request instance in the current context，"
                 "Please ensure that you use it in the gRPC request processing flow."
             )
-        return req
+        return request
 
     def _parse_pkg_svc_method(self):
         if not self.full_method:
@@ -117,6 +121,17 @@ class Request:
                 self.peer_info = PeerInfo(ip_version=ip_version, raw=raw)
         except Exception:
             self.peer_info = PeerInfo(raw=raw)
+
+    def send_metadata(self, key: str, value: Union[str, BytesLike]):
+        """call grpc context send initial metadata"""
+        self.grpc_context.send_initial_metadata((key, value))
+
+    def abort(self, code: grpc.StatusCode, detail: str, metadata: Optional[StrDict] = None):
+        """call grpc context abort"""
+        self.grpc_context.abort(code, detail, metadata or {})
+
+    def is_request_bytes_empty(self) -> bool:
+        return self.request_bytes is _EmptyRequestBytes
 
     def __repr__(self):
         return (

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from .application import GRPCFramework
+from .application import (
+    GRPCFramework, get_current_app
+)
 from .config import GRPCFrameworkConfig
 
 from .core.request import Request
@@ -32,6 +34,7 @@ __all__ = [
     # application
     'GRPCFramework',
     'GRPCFrameworkConfig',
+    'get_current_app',
 
     # request
     'Request',
