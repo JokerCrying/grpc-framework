@@ -74,11 +74,13 @@ class GRPCFrameworkConfig:
     def from_module(cls, module_path: ModulePath, package: str = None) -> 'GRPCFrameworkConfig':
         """read config from python module"""
         module = importlib.import_module(module_path, package)
+        annotations = cls.__annotations__.keys()
         return cls(**{
             k: getattr(module, k, None)
             for k in dir(module)
             if not k.startswith('__') and
-               getattr(module, k, None) is not None
+               getattr(module, k, None) is not None and
+               k in annotations
         })
 
     @staticmethod

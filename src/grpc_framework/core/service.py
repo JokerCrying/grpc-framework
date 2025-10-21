@@ -1,7 +1,8 @@
 import inspect
 from ..types import OptionalStr
 from .enums import Interaction
-from typing import TypedDict, Callable, Optional, Type, Union
+from typing import TypedDict, Callable, Optional, Type, Union, Dict
+from .params import ParamInfo, ParamParser
 
 __all__ = [
     'rpc',
@@ -54,6 +55,8 @@ class RPCFunctionMetadata(TypedDict):
     request_interaction: Interaction
     response_interaction: Interaction
     rpc_service: Optional[Union['Service', Type['Service']]]
+    input_param_info: Dict[str, ParamInfo]
+    return_param_info: ParamInfo
 
 
 class Service:
@@ -74,11 +77,25 @@ class Service:
                 handler=func,
                 request_interaction=request_interaction,
                 response_interaction=response_interaction,
-                rpc_service=self
+                rpc_service=self,
+                input_param_info=ParamParser.parse_input_params(func),
+                return_param_info=ParamParser.parse_return_type(func)
             )
             return func
 
         return decorator
+
+    def unary_unary(self, func):
+        return self.method(Interaction.unary, Interaction.unary)(func)
+
+    def unary_stream(self, func):
+        return self.method(Interaction.unary, Interaction.stream)(func)
+
+    def stream_unary(self, func):
+        return self.method(Interaction.stream, Interaction.unary)(func)
+
+    def stream_stream(self, func):
+        return self.method(Interaction.stream, Interaction.stream)(func)
 
     @classmethod
     def collect_rpc_methods(cls):
@@ -91,6 +108,8 @@ class Service:
                     handler=func,
                     request_interaction=rpc_meta['request_interaction'],
                     response_interaction=rpc_meta['response_interaction'],
-                    rpc_service=cls
+                    rpc_service=cls,
+                    input_param_info=ParamParser.parse_input_params(func),
+                    return_param_info=ParamParser.parse_return_type(func)
                 )
         return methods

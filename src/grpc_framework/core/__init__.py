@@ -2,7 +2,8 @@ from .serialization import (
     Serializer, TransportCodec,
     ModelConverter, JsonProtobufConverter,
     ORJSONCodec, JSONCodec, ProtobufCodec,
-    JsonConverter, ProtobufConverter
+    JsonConverter, ProtobufConverter, DataclassesCodec,
+    DataclassesConverter
 )
 from .service import (
     rpc, Service, RPCFunctionMetadata,
@@ -24,6 +25,8 @@ __all__ = [
     'JsonProtobufConverter',
     'JsonConverter',
     'ProtobufConverter',
+    'DataclassesConverter',
+    'DataclassesCodec',
 
     # service
     'rpc',

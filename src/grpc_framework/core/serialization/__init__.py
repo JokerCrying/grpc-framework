@@ -1,6 +1,6 @@
 from .interface import Serializer, TransportCodec, ModelConverter
 from .codec_impls import JSONCodec, ORJSONCodec, ProtobufCodec, DataclassesCodec
-from .converter_impls import JsonProtobufConverter, JsonConverter, ProtobufConverter
+from .converter_impls import JsonProtobufConverter, JsonConverter, ProtobufConverter, DataclassesConverter
 
 __all__ = [
     'Serializer',
@@ -12,5 +12,6 @@ __all__ = [
     'JsonProtobufConverter',
     'DataclassesCodec',
     'JsonConverter',
-    'ProtobufConverter'
+    'ProtobufConverter',
+    'DataclassesConverter'
 ]

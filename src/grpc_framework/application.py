@@ -7,6 +7,7 @@ from .core.middleware import MiddlewareManager
 from .core.interceptors import RequestContextInterceptor
 from .core.context import RequestContextManager
 from .core.adaptor import GRPCAdaptor
+from .core.params import ParamInfo, ParamParser
 from .config import GRPCFrameworkConfig
 from typing import Optional, Type, Union
 from contextvars import ContextVar
@@ -83,11 +84,25 @@ class GRPCFramework:
                 handler=func,
                 request_interaction=request_interaction,
                 response_interaction=response_interaction,
-                rpc_service=None
+                rpc_service=None,
+                return_param_info=ParamParser.parse_return_type(func),
+                input_param_info=ParamParser.parse_input_params(func)
             )
             return func
 
         return decorator
+
+    def unary_unary(self, func):
+        return self.method(Interaction.unary, Interaction.unary)(func)
+
+    def unary_stream(self, func):
+        return self.method(Interaction.unary, Interaction.stream)(func)
+
+    def stream_unary(self, func):
+        return self.method(Interaction.stream, Interaction.unary)(func)
+
+    def stream_stream(self, func):
+        return self.method(Interaction.stream, Interaction.stream)(func)
 
     def add_service(self, svc: Union[Type[Service], Service]):
         if inspect.isclass(svc) and issubclass(svc, Service):
@@ -114,7 +129,7 @@ class GRPCFramework:
             raise RuntimeError(f'unknown {method_meta} in registered services.')
         return method_meta
 
-    async def start(self):
+    def run(self):
         pass
 
     def __repr__(self):

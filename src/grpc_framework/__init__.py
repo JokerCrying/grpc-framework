@@ -13,6 +13,10 @@ from .core.enums import Interaction
 
 from .core.middleware import BaseMiddleware
 
+from .core.service import (
+    Service, unary_unary, unary_stream, stream_unary, stream_stream, rpc
+)
+
 from .core.serialization import (
     Serializer,
     TransportCodec,
@@ -23,7 +27,8 @@ from .core.serialization import (
     DataclassesCodec,
     ProtobufConverter,
     JsonProtobufConverter,
-    JsonConverter
+    JsonConverter,
+    DataclassesConverter
 )
 
 __version__ = "0.0.1"
@@ -58,5 +63,14 @@ __all__ = [
     'DataclassesCodec',
     'ProtobufConverter',
     'JsonProtobufConverter',
-    'JsonConverter'
+    'JsonConverter',
+    'DataclassesConverter',
+
+    # Service & grpc endpoint register
+    'Service',
+    'unary_stream',
+    'unary_unary',
+    'stream_stream',
+    'stream_unary',
+    'rpc'
 ]
