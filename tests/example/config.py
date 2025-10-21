@@ -1,5 +1,7 @@
 from src.grpc_framework import DataclassesCodec, DataclassesConverter
 
+package = 'demo'
+
 name = 'grpc-framework-demo'
 
 version = '1.0.0.beta'

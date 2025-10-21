@@ -3,10 +3,8 @@ from tests.example.user_service import UserService
 from tests.example.profile_service import service as profile_service
 
 config = GRPCFrameworkConfig.from_module('tests.example.config')
-print('config ===', config)
 
 app = GRPCFramework(config=config)
-print('application ===', app)
 
 app.add_service(UserService)
 app.add_service(profile_service)
@@ -24,5 +22,4 @@ def app_us_func():
 
 
 if __name__ == '__main__':
-    print(app._services)
     app.run()

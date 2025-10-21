@@ -15,6 +15,7 @@ class GRPCFrameworkConfig:
     """gRPC Framework Global Config
 
     Args:
+        package: grpc package, it is a requireable arg, can not be 'grpc'
         name: application name
         version: application version
         host: application run host
@@ -43,6 +44,7 @@ class GRPCFrameworkConfig:
             lifetime of the server unless overridden by set_compression.
     """
 
+    package: str = 'grpc'
     name: str = 'grpc-framework'
     version: str = '0.0.0'
     host: str = 'localhost'
@@ -68,7 +70,12 @@ class GRPCFrameworkConfig:
         )
         filetype = filename.split('.')[-1]
         config = parse_config(filetype, filename, options)
-        return cls(**config)
+        annotations = cls.__annotations__.keys()
+        return cls(**{
+            k: v
+            for k, v in config.items()
+            if k in annotations
+        })
 
     @classmethod
     def from_module(cls, module_path: ModulePath, package: str = None) -> 'GRPCFrameworkConfig':
@@ -87,3 +94,7 @@ class GRPCFrameworkConfig:
     def add_config_parser(filetype: str, parser: CONFIG_PARSER_TYPE):
         """add a config parser to support filetype"""
         add_config_parser(filetype, parser)
+
+    def __post_init__(self):
+        if self.package == 'grpc':
+            raise ValueError("Can not be 'grpc' value when initialize GRPCFrameworkConfig, set a other value please.")

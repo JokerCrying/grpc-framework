@@ -3,6 +3,7 @@ from typing import Any, TYPE_CHECKING, Optional
 from ..request.request import Request
 from .domain import StreamRequest
 from ...types import T
+from ..params import ParamInfo
 
 if TYPE_CHECKING:
     from ...application import GRPCFramework
@@ -12,19 +13,19 @@ class RequestAdaptor:
     def __init__(self,
                  interaction_type: Interaction,
                  app: 'GRPCFramework',
-                 request: Request = None,
-                 model_type: Optional[T] = None):
+                 input_param_info: ParamInfo,
+                 request: Request):
         self.interaction_type = interaction_type
         self.request_bytes = request.request_bytes
         self.app = app
-        self.model_type = model_type
+        self.input_param_info = input_param_info
         self.request = request
 
     def unary_request(self):
-        return self.deserialize_request(self.request_bytes, self.model_type)
+        return self.deserialize_request(self.request_bytes, self.input_param_info.type)
 
     def stream_request(self) -> StreamRequest[T]:
-        return StreamRequest(self.request_bytes, self.deserialize_request, self.model_type)
+        return StreamRequest(self.request_bytes, self.deserialize_request, self.input_param_info.type)
 
     def deserialize_request(self, request: Request, model_type: type) -> Any:
         """Deserialize the original request data into a domain model"""

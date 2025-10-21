@@ -18,12 +18,18 @@ class RequestContextManager:
         self._before_request_handlers: List[BEFORE_HOOK_TYPE] = []
         self._after_request_handlers: List[AFTER_HOOK_TYPE] = []
 
-    def before_request(self, func: BEFORE_HOOK_TYPE):
-        self._before_request_handlers.append(BEFORE_HOOK_TYPE)
+    def before_request(self, func: BEFORE_HOOK_TYPE, index: Optional[int] = None):
+        if index is not None:
+            self._before_request_handlers.insert(index, func)
+        else:
+            self._before_request_handlers.append(BEFORE_HOOK_TYPE)
         return func
 
-    def after_request(self, func: AFTER_HOOK_TYPE):
-        self._after_request_handlers.append(func)
+    def after_request(self, func: AFTER_HOOK_TYPE, index: Optional[int] = None):
+        if index is not None:
+            self._after_request_handlers.insert(index, func)
+        else:
+            self._after_request_handlers.append(func)
         return func
 
     async def context(self, request: Request):

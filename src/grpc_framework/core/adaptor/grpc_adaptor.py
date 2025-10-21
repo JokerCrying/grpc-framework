@@ -1,15 +1,21 @@
 import inspect
+import traceback
+from functools import partial
+from typing import TYPE_CHECKING, Any, Callable
 from grpc.aio import ServicerContext
-from typing import Optional, Sequence, TYPE_CHECKING, Any, Callable
-from ...utils import Sync2AsyncUtils
+from .request_adaptor import RequestAdaptor
+from ..enums import Interaction
+from ..params import ParamInfo
 from ..request.request import Request
 from ..response.response import Response
-from ..enums import Interaction
-from .request_adaptor import RequestAdaptor
-from functools import partial
+from ...exceptions import GRPCException
+from ...utils import Sync2AsyncUtils
 
 if TYPE_CHECKING:
     from src.grpc_framework.application import GRPCFramework
+
+
+class _HasRuntimeErrorRemark: ...
 
 
 class GRPCAdaptor:
@@ -23,7 +29,7 @@ class GRPCAdaptor:
         self.app = app
         self.s2a = Sync2AsyncUtils(self.app.config.executor)
 
-    def wrap_unary_unary_handler(self, handler: Callable, request_model_type: type):
+    def wrap_unary_unary_handler(self, handler: Callable, request_model_type: ParamInfo):
         """wrap unary_unary endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
@@ -37,7 +43,7 @@ class GRPCAdaptor:
 
         return wrapper
 
-    def wrap_unary_stream_handler(self, handler: Callable, request_model_type: type):
+    def wrap_unary_stream_handler(self, handler: Callable, request_model_type: ParamInfo):
         """wrap unary_stream endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
@@ -52,7 +58,7 @@ class GRPCAdaptor:
 
         return wrapper
 
-    def wrap_stream_unary_handler(self, handler: Callable, request_model_type: type):
+    def wrap_stream_unary_handler(self, handler: Callable, request_model_type: ParamInfo):
         """wrap stream_unary endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
@@ -66,7 +72,7 @@ class GRPCAdaptor:
 
         return wrapper
 
-    def wrap_stream_stream_unary_handler(self, handler: Callable, request_model_type: type):
+    def wrap_stream_stream_handler(self, handler: Callable, request_model_type: ParamInfo):
         """wrap stream_stream endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
@@ -81,24 +87,10 @@ class GRPCAdaptor:
 
         return wrapper
 
-    def wrap_handler_by_interaction(self, handler: Callable, request_interaction, response_interaction,
-                                    request_model_type: type, response_model_type: type):
-        """Select the appropriate wrapper based on the type of interaction"""
-        if request_interaction == Interaction.unary and response_interaction == Interaction.unary:
-            return self.wrap_unary_unary_handler(handler, request_model_type, response_model_type)
-        elif request_interaction == Interaction.unary and response_interaction == Interaction.stream:
-            return self.wrap_unary_stream_handler(handler, request_model_type, response_model_type)
-        elif request_interaction == Interaction.stream and response_interaction == Interaction.unary:
-            return self.wrap_stream_unary_handler(handler, request_model_type, response_model_type)
-        elif request_interaction == Interaction.stream and response_interaction == Interaction.stream:
-            return self.wrap_stream_stream_handler(handler, request_model_type, response_model_type)
-        else:
-            raise ValueError(f"Unsupported interaction types: {request_interaction}, {response_interaction}")
-
     def make_request_adaptor(self,
                              request_bytes: Any,
                              context: ServicerContext,
-                             request_model_type: type,
+                             request_model_type: ParamInfo,
                              interaction_type: Interaction) -> RequestAdaptor:
         """make a request adaptor for a once request"""
         request = self.adapt_request(Request.current(), request_bytes, context)
@@ -106,26 +98,36 @@ class GRPCAdaptor:
             interaction_type=interaction_type,
             app=self.app,
             request=request,
-            model_type=request_model_type
+            input_param_info=request_model_type
         )
         return request_adaptor
 
     async def unary_response(self, request_adaptor: RequestAdaptor, handler: Callable):
         """handle unary endpoint"""
-        async with self.app.start_request_context(request_adaptor.request) as ctx:
+        request = request_adaptor.request
+        async with self.app.start_request_context(request) as ctx:
             async for response in self.call_handler(handler):
+                if response is _HasRuntimeErrorRemark:
+                    return b''
                 response = Response(content=response, app=self.app)
                 ctx.send(response)
+                self.app.logger.info(
+                    f'Call method success: /{request.package}.{request.service_name}/{request.method_name}')
                 return response.render()
-        raise RuntimeError(f'Can not handle endpoint: {handler}')
+        raise GRPCException.unknown(f'Can not handle endpoint: {handler}')
 
     async def stream_response(self, request_adaptor: RequestAdaptor, handler: Callable):
         """handle stream endpoint"""
-        async with self.app.start_request_context(request_adaptor.request) as ctx:
+        request = request_adaptor.request
+        async with self.app.start_request_context(request) as ctx:
             async for response in self.call_handler(handler):
+                if response is _HasRuntimeErrorRemark:
+                    yield b""
                 response = Response(content=response, app=self.app)
                 ctx.send(response)
                 yield response.render()
+        self.app.logger.info(
+            f'Call method success: /{request.package}.{request.service_name}/{request.method_name}')
 
     async def call_handler(self, handler: Callable):
         """
@@ -144,8 +146,17 @@ class GRPCAdaptor:
                 yield await self.s2a.run_function(h)
 
             run_handler = partial(_to_async_iter, h=handler)
-        async for response in run_handler():
-            yield response
+        try:
+            async for response in run_handler():
+                yield response
+        except Exception as endpoint_runtime_error:
+            request = Request.current()
+            self.app.logger.exception(endpoint_runtime_error)
+            traceback.print_exc()
+            self.app._error_handler.call_error_handler(endpoint_runtime_error, request)
+            self.app.logger.error(
+                f'Call handler error, method: /{request.package}.{request.service_name}/{request.method_name}')
+            yield _HasRuntimeErrorRemark
 
     @staticmethod
     def adapt_request(request: Request, request_data: bytes, context) -> Request:

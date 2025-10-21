@@ -13,12 +13,18 @@ class LifecycleManager:
         self._shutdown_handlers = []
         self._loop = asyncio.get_event_loop()
 
-    def on_startup(self, func: Callable):
-        self._startup_handlers.append(func)
+    def on_startup(self, func: Callable, index: Optional[int] = None):
+        if index is not None:
+            self._startup_handlers.insert(index, func)
+        else:
+            self._startup_handlers.append(func)
         return func
 
-    def on_shutdown(self, func: Callable):
-        self._shutdown_handlers.append(func)
+    def on_shutdown(self, func: Callable, index: Optional[int] = None):
+        if index is not None:
+            self._shutdown_handlers.insert(index, func)
+        else:
+            self._shutdown_handlers.append(func)
         return func
 
     def lifecycle(self, func: Callable):

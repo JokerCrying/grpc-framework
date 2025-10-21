@@ -13,6 +13,9 @@ from .adaptor import (
     GRPCAdaptor, RequestAdaptor,
     StreamRequest
 )
+from .error_handler import (
+    ErrorHandler
+)
 
 __all__ = [
     # serialization impls
@@ -41,4 +44,7 @@ __all__ = [
     'GRPCAdaptor',
     'RequestAdaptor',
     'StreamRequest',
+
+    # error handler
+    'ErrorHandler'
 ]
