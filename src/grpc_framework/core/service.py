@@ -1,8 +1,9 @@
 import inspect
-from ..types import OptionalStr
-from .enums import Interaction
+from src.grpc_framework.types import OptionalStr
+from src.grpc_framework.core.enums import Interaction
 from typing import TypedDict, Callable, Optional, Type, Union, Dict
-from .params import ParamInfo, ParamParser
+from src.grpc_framework.core.params import ParamInfo, ParamParser
+from src.grpc_framework.core.request.request import Request
 
 __all__ = [
     'rpc',
@@ -13,6 +14,15 @@ __all__ = [
     'stream_unary',
     'stream_stream'
 ]
+
+
+class RPCFunctionMetadata(TypedDict):
+    handler: Callable
+    request_interaction: Interaction
+    response_interaction: Interaction
+    rpc_service: Optional[Union['Service', Type['Service']]]
+    input_param_info: Dict[str, ParamInfo]
+    return_param_info: ParamInfo
 
 
 def rpc(request_interaction: Interaction, response_interaction: Interaction):
@@ -50,19 +60,11 @@ def stream_stream(func):
     return rpc(Interaction.stream, Interaction.stream)(func)
 
 
-class RPCFunctionMetadata(TypedDict):
-    handler: Callable
-    request_interaction: Interaction
-    response_interaction: Interaction
-    rpc_service: Optional[Union['Service', Type['Service']]]
-    input_param_info: Dict[str, ParamInfo]
-    return_param_info: ParamInfo
-
-
 class Service:
     def __init__(self, service_name: OptionalStr = None):
         self.service_name = service_name or self.__class__.__name__
         self._methods = {}
+        self.request: Optional[Request] = None
 
     @property
     def methods(self):
@@ -113,3 +115,7 @@ class Service:
                     return_param_info=ParamParser.parse_return_type(func)
                 )
         return methods
+
+    def __post_init__(self):
+        """step2 initialize Request Class, if you want to override this method, please call super().__post_init__()"""
+        self.request = Request.current()

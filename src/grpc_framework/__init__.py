@@ -5,6 +5,10 @@ from .application import (
 )
 from .config import GRPCFrameworkConfig
 
+from .core.adaptor import (
+    StreamRequest
+)
+
 from .core.request import Request
 
 from .core.response import Response
@@ -72,5 +76,8 @@ __all__ = [
     'unary_unary',
     'stream_stream',
     'stream_unary',
-    'rpc'
+    'rpc',
+
+    # adaptor
+    'StreamRequest'
 ]

@@ -1,7 +1,7 @@
 import abc
 import asyncio
 import inspect
-from typing import Callable, Union, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ...application import GRPCFramework
@@ -29,6 +29,8 @@ class MiddlewareManager:
         """construct the middleware call chain"""
 
         async def call_next(req: 'Request'):
+            if not callable(handler):
+                return None
             return await handler(req)
 
         # reverse parcel middleware chain
@@ -48,5 +50,4 @@ class MiddlewareManager:
                     return await _mw_inst.dispatch(req, _next)
             else:
                 raise TypeError(f"Invalid middleware type: {mw}")
-
         return await call_next(request)

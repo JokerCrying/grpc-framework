@@ -5,6 +5,9 @@ from typing import Type, TYPE_CHECKING, Union, Optional, Any
 from dataclasses import dataclass
 from ...types import StrAnyDict, BytesLike, StrDict
 
+if TYPE_CHECKING:
+    from ..service import RPCFunctionMetadata
+
 
 # Default Request Context Var
 class _EmptyRequest: ...
@@ -53,7 +56,7 @@ class Request:
             compression: Optional[grpc.Compression] = None,
             grpc_context: Optional[ServicerContext] = None
     ):
-        self.peer_info: PeerInfo = PeerInfo(**peer_info_dict)
+        self.peer_info: Optional[PeerInfo] = peer_info_dict
         self.metadata: StrAnyDict = metadata or {}
         self.package: Optional[str] = None
         self.service_name: Optional[str] = None
@@ -63,6 +66,7 @@ class Request:
         self.grpc_context: Optional[ServicerContext] = grpc_context
         self.state: StrAnyDict = {}
         self.request_bytes: Any = _EmptyRequestBytes
+        self.current_request_metadata: Optional['RPCFunctionMetadata'] = None
         # set current request
         _current_request.set(self)
 
@@ -131,6 +135,7 @@ class Request:
         self.grpc_context.abort(code, detail, metadata or {})
 
     def is_request_bytes_empty(self) -> bool:
+        """is current request bytes empty"""
         return self.request_bytes is _EmptyRequestBytes
 
     def __repr__(self):

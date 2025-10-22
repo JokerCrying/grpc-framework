@@ -3,7 +3,7 @@ from typing import Any, Optional, Type
 from .interface import TransportCodec
 from ...types import OptionalT, BytesLike, JSONType
 from google.protobuf.message import Message
-from dataclasses import dataclass, is_dataclass, asdict
+from ...exceptions import GRPCException
 
 try:
     import orjson
@@ -42,20 +42,13 @@ class ORJSONCodec(TransportCodec):
 
 
 class DataclassesCodec(TransportCodec):
-    def decode(self, data: BytesLike, into: OptionalT = None) -> Any:
+    def decode(self, data: BytesLike, into: OptionalT = None) -> JSONType:
         assert into is not None, "DataclassesCodec.decode requires message class via 'into'"
         try:
             data = json.loads(data)
         except:
-            raise ValueError(f'The data is not json like, can not decode.')
-        if isinstance(data, list):
-            return [into(**i) for i in data]
-        elif isinstance(data, dict):
-            return into(**data)
-        else:
-            raise ValueError(f'Can not make a dataclasses instance with {data}.')
+            raise GRPCException.invalid_argument(f'The data is not json like, can not decode.')
+        return data
 
-    def encode(self, obj: Any) -> BytesLike:
-        if not is_dataclass(obj):
-            raise ValueError(f'The type {type(obj)} is not dataclasses.')
-        return json.dumps(asdict(obj), ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    def encode(self, obj: JSONType) -> BytesLike:
+        return json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode('utf-8')

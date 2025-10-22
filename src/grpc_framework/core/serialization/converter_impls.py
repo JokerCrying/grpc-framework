@@ -8,7 +8,7 @@ from dataclasses import is_dataclass, asdict
 
 
 class JsonProtobufConverter(ModelConverter):
-    """双向转换器：JSON <-> Protocol Buffers"""
+    """bidirectional converter：JSON <-> Protocol Buffers"""
 
     def to_model(self, transport_obj: JSONType, model_type: Type[Message]) -> Union[Message, List[Message]]:
         """Convert JSON data to protobuf message(s)"""
@@ -41,7 +41,7 @@ class DataclassesConverter(ModelConverter):
     def to_model(self, transport_obj: JSONType, model_type: TypeT) -> T:
         if isinstance(transport_obj, list):
             return [self._parse_single(i, model_type) for i in transport_obj]
-        elif isinstance(transport_obj, str):
+        elif isinstance(transport_obj, dict):
             return self._parse_single(transport_obj, model_type)
         raise ValueError(f'Cannot convert JSON primitive {type(transport_obj)} to dataclass instance')
 

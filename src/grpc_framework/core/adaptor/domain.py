@@ -1,5 +1,7 @@
 from typing import Any, Optional, Callable, Generic, AsyncIterator
 from ...types import AsyncIteratorType, T
+from ..request.request import Request
+from ..params.domain import ParamInfo
 
 
 class StreamRequest(Generic[T]):
@@ -18,10 +20,11 @@ class StreamRequest(Generic[T]):
     """
 
     def __init__(self,
-                 request_iter: AsyncIteratorType[Any],
+                 request: Request,
                  deserialization_handler: Callable,
-                 model_type: Optional[T] = None):
-        self.request_iter = request_iter
+                 model_type: Optional[ParamInfo] = None):
+        self.request = request
+        self.request_iter = request.request_bytes
         self.deserialization_handler = deserialization_handler
         self.model_type = model_type
 

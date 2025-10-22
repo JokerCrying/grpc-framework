@@ -10,7 +10,7 @@ from .core.middleware import MiddlewareManager
 from .core.interceptors import RequestContextInterceptor
 from .core.context import RequestContextManager
 from .core.adaptor import GRPCAdaptor
-from .core.params import ParamInfo, ParamParser
+from .core.params import ParamParser
 from .core.error_handler import ErrorHandler
 from .core.response.response import Response
 from .utils import get_logger
@@ -37,6 +37,14 @@ def get_current_app() -> 'GRPCFramework':
 
 
 class GRPCFramework:
+    """easy grpc apis framework
+
+    a pythonic application to make a grpc project.
+
+    Args:
+        config: application config
+    """
+
     def __init__(
             self,
             config: Optional[GRPCFrameworkConfig] = None
@@ -91,6 +99,12 @@ class GRPCFramework:
         _current_app.set(self)
 
     def method(self, request_interaction: Interaction, response_interaction: Interaction):
+        """register an endpoint to root service
+
+        :param request_interaction: Interaction type, unary or stream
+        :param response_interaction: Interaction type, unary or stream
+        """
+
         def decorator(func):
             self._services[self.config.app_service_name][func.__name__] = RPCFunctionMetadata(
                 handler=func,
@@ -105,18 +119,27 @@ class GRPCFramework:
         return decorator
 
     def unary_unary(self, func):
+        """register a unary_unary endpoint to root service"""
         return self.method(Interaction.unary, Interaction.unary)(func)
 
     def unary_stream(self, func):
+        """register a unary_stream endpoint to root service"""
         return self.method(Interaction.unary, Interaction.stream)(func)
 
     def stream_unary(self, func):
+        """register a stream_unary endpoint to root service"""
         return self.method(Interaction.stream, Interaction.unary)(func)
 
     def stream_stream(self, func):
+        """register a stream_stream endpoint to root service"""
         return self.method(Interaction.stream, Interaction.stream)(func)
 
     def add_service(self, svc: Union[Type[Service], Service]):
+        """add a function based view or class based view to service
+
+        :param svc: cbv or fbv service
+        :return: None
+        """
         if inspect.isclass(svc) and issubclass(svc, Service):
             # cbv
             methods = svc.collect_rpc_methods()
@@ -129,10 +152,32 @@ class GRPCFramework:
             raise TypeError(f'got an error type when add grpc service, type is {type(svc)}')
         self._services[method_name] = methods
 
+    def load_proto_rpc(self, impl, add_service_func):
+        """load a proto rpc service to server, its can compatibility old project in
+        your team, asynchronous encoding is recommended
+
+        warning: grpc framework will no longer take over the endpoint behavior, so request context like Request Response
+            can not be use.
+
+        :param impl: grpc impl servicer
+        :param add_service_func: python protoc will generate a function to add servicer to server, the app
+            will add impl to server
+        :return: None
+        """
+        add_service_func(impl(), self._server)
+
     async def dispatch(self, request, context):
+        """call middleware chain when a request context"""
         return await self._middleware_manager.dispatch(request, context)
 
     def find_endpoint(self, pkg: str, svc: str, method: str) -> RPCFunctionMetadata:
+        """find grpc endpoint
+
+        :param pkg: grpc package
+        :param svc: service name
+        :param method: method name
+        :return: a grpc function metadata, its store endpoint metadata
+        """
         service_metas = self._services.get(svc)
         if service_metas is None:
             raise RuntimeError(f'unknown {svc} in registered services.')
@@ -142,11 +187,12 @@ class GRPCFramework:
         return method_meta
 
     def run(self):
+        """run server, its will call application context, server will run in config
+            host and port"""
         self._lifecycle_manager.on_startup(self._register_services_in_service)  # register service to grpc server
         self._lifecycle_manager.on_startup(self._enable_reflection)  # enable service reflection
         self._lifecycle_manager.on_startup(self._server_start, -1)  # ensure last step is start server
-        self._request_context_manager.after_request(self._log_request_success, -1)  # ensure last step is log success
-        # todo: 明天看看怎么优化请求上下文
+        self._request_context_manager.after_request(self._log_request, -1)  # ensure last step is log success
         try:
             self.loop.run_until_complete(self._start())
         except KeyboardInterrupt:
@@ -155,17 +201,18 @@ class GRPCFramework:
             self.loop.close()
 
     async def _start(self):
+        """call application context"""
         async with self._lifecycle_manager.context(self):
             pass
 
     def _register_services_in_service(self, _):
+        """register application services to server"""
         for svc_name, data in self._services.items():
             rpc_method_handlers = {}
             for method_name, metadata in data.items():
                 request_interaction = metadata['request_interaction']
                 response_interaction = metadata['response_interaction']
                 request_mode = '_'.join([request_interaction.value, response_interaction.value])
-                request_model_info = metadata['input_param_info']
                 if request_mode == 'unary_unary':
                     use_grpc_handler_func = 'unary_unary_rpc_method_handler'
                     use_adaptor_wrap = 'wrap_unary_unary_handler'
@@ -181,10 +228,7 @@ class GRPCFramework:
                 else:
                     raise TypeError(f'got an unknown endpoint type, it is {request_mode}')
                 rpc_method_handlers[method_name] = getattr(grpc, use_grpc_handler_func)(
-                    behavior=getattr(self._adaptor, use_adaptor_wrap)(
-                        handler=metadata['handler'],
-                        request_model_type=request_model_info
-                    )
+                    behavior=getattr(self._adaptor, use_adaptor_wrap)(metadata)
                 )
                 service_name = f'{self.config.package}.{svc_name}'
                 generic_handler = grpc.method_handlers_generic_handler(
@@ -194,6 +238,7 @@ class GRPCFramework:
                 self._server.add_registered_method_handlers(service_name, rpc_method_handlers)
 
     def _enable_reflection(self, _):
+        """enable grpc reflection if config reflection"""
         if self.config.reflection:
             for svc_name, _ in self._services.items():
                 service_name = f'{self.config.package}.{svc_name}'
@@ -204,6 +249,7 @@ class GRPCFramework:
                 reflection.enable_server_reflection(service_names, self._server)
 
     async def _server_start(self, _):
+        """start server in application context last step"""
         run_endpoint = f'{self.config.host}:{self.config.port}'
         self._server.add_insecure_port(run_endpoint)
         await self._server.start()
@@ -213,8 +259,14 @@ class GRPCFramework:
         finally:
             await self._server.stop(grace=3)
 
-    def _log_request_success(self, response: Response):
-        self.logger.info(f'Call method success: /{response.package}.{response.service_name}/{response.method_name}')
+    def _log_request(self, response: Response):
+        """log request in request context last step"""
+        if response.status_code is not grpc.StatusCode.OK:
+            logger_level = 'error'
+        else:
+            logger_level = 'info'
+        getattr(self.logger, logger_level)(
+            f'Call method code={response.status_code}: /{response.package}.{response.service_name}/{response.method_name}')
 
     def __repr__(self):
         return f'<gRPC Framework name={self.config.name}>'

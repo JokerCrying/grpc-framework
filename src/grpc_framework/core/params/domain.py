@@ -17,8 +17,8 @@ class ParamInfo:
 
     def from_value(self, value: Any) -> Any:
         """
-        将给定值序列化为当前类型描述的实例
-        现在是实例方法，只需传入value参数
+        Serialize the given value to an instance of the current type description
+        Now it's an instance method. Just pass in the value parameter
         """
         if value is None:
             return None

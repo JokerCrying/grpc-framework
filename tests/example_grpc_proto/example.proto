@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package simple;
+
+message SimpleRequest {
+  string query = 1;
+  int32 page_number = 2;
+  int32 result_per_page = 3;
+}
+
+message SimpleResponse {
+  string result = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+service SimpleService {
+  rpc GetSimpleResponse (SimpleRequest) returns (SimpleResponse) {}
+
+  rpc StreamResponses (SimpleRequest) returns (stream SimpleResponse) {}
+}

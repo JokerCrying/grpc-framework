@@ -1,7 +1,8 @@
+import grpc
 import inspect
 import traceback
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 from grpc.aio import ServicerContext
 from .request_adaptor import RequestAdaptor
 from ..enums import Interaction
@@ -10,12 +11,10 @@ from ..request.request import Request
 from ..response.response import Response
 from ...exceptions import GRPCException
 from ...utils import Sync2AsyncUtils
+from ..service import RPCFunctionMetadata
 
 if TYPE_CHECKING:
     from src.grpc_framework.application import GRPCFramework
-
-
-class _HasRuntimeErrorRemark: ...
 
 
 class GRPCAdaptor:
@@ -29,60 +28,64 @@ class GRPCAdaptor:
         self.app = app
         self.s2a = Sync2AsyncUtils(self.app.config.executor)
 
-    def wrap_unary_unary_handler(self, handler: Callable, request_model_type: ParamInfo):
+    def wrap_unary_unary_handler(self, rpc_metadata: RPCFunctionMetadata):
         """wrap unary_unary endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
             request_adaptor = self.make_request_adaptor(
                 request_bytes=request_bytes,
                 context=context,
-                request_model_type=request_model_type,
+                request_metadata=rpc_metadata,
                 interaction_type=Interaction.unary
             )
-            return await self.unary_response(request_adaptor, handler)
+            await self.app.dispatch(request_adaptor.request, request_adaptor.request.grpc_context)
+            return await self.unary_response(request_adaptor, rpc_metadata)
 
         return wrapper
 
-    def wrap_unary_stream_handler(self, handler: Callable, request_model_type: ParamInfo):
+    def wrap_unary_stream_handler(self, rpc_metadata: RPCFunctionMetadata):
         """wrap unary_stream endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
             request_adaptor = self.make_request_adaptor(
                 request_bytes=request_bytes,
                 context=context,
-                request_model_type=request_model_type,
+                request_metadata=rpc_metadata,
                 interaction_type=Interaction.unary
             )
-            async for response in self.stream_response(request_adaptor, handler):
+            await self.app.dispatch(request_adaptor.request, request_adaptor.request.grpc_context)
+            async for response in self.stream_response(request_adaptor, rpc_metadata):
                 yield response
 
         return wrapper
 
-    def wrap_stream_unary_handler(self, handler: Callable, request_model_type: ParamInfo):
+    def wrap_stream_unary_handler(self, rpc_metadata: RPCFunctionMetadata):
         """wrap stream_unary endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
             request_adaptor = self.make_request_adaptor(
                 request_bytes=request_bytes,
                 context=context,
-                request_model_type=request_model_type,
+                request_metadata=rpc_metadata,
                 interaction_type=Interaction.stream
             )
-            return await self.unary_response(request_adaptor, handler)
+            await self.app.dispatch(request_adaptor.request, request_adaptor.request.grpc_context)
+            return await self.unary_response(request_adaptor, rpc_metadata)
 
         return wrapper
 
-    def wrap_stream_stream_handler(self, handler: Callable, request_model_type: ParamInfo):
+    def wrap_stream_stream_handler(self, rpc_metadata: RPCFunctionMetadata):
         """wrap stream_stream endpoint"""
 
         async def wrapper(request_bytes: Any, context: ServicerContext):
             request_adaptor = self.make_request_adaptor(
                 request_bytes=request_bytes,
                 context=context,
-                request_model_type=request_model_type,
+                request_metadata=rpc_metadata,
                 interaction_type=Interaction.stream
             )
-            async for response in self.stream_response(request_adaptor, handler):
+            await self.app.dispatch(request_adaptor.request, request_adaptor.request.grpc_context)
+            async for response in self.stream_response(request_adaptor, rpc_metadata):
                 yield response
 
         return wrapper
@@ -90,73 +93,84 @@ class GRPCAdaptor:
     def make_request_adaptor(self,
                              request_bytes: Any,
                              context: ServicerContext,
-                             request_model_type: ParamInfo,
-                             interaction_type: Interaction) -> RequestAdaptor:
+                             interaction_type: Interaction,
+                             request_metadata: RPCFunctionMetadata) -> RequestAdaptor:
         """make a request adaptor for a once request"""
         request = self.adapt_request(Request.current(), request_bytes, context)
+        request.current_request_metadata = request_metadata
         request_adaptor = RequestAdaptor(
             interaction_type=interaction_type,
             app=self.app,
             request=request,
-            input_param_info=request_model_type
+            input_param_info=request_metadata['input_param_info']
         )
         return request_adaptor
 
-    async def unary_response(self, request_adaptor: RequestAdaptor, handler: Callable):
+    async def unary_response(self, request_adaptor: RequestAdaptor, rpc_metadata: RPCFunctionMetadata):
         """handle unary endpoint"""
         request = request_adaptor.request
         async with self.app.start_request_context(request) as ctx:
-            async for response in self.call_handler(handler):
-                if response is _HasRuntimeErrorRemark:
-                    return b''
+            async for response in self.call_handler(rpc_metadata, request_adaptor):
                 response = Response(content=response, app=self.app)
-                ctx.send(response)
-                self.app.logger.info(
-                    f'Call method success: /{request.package}.{request.service_name}/{request.method_name}')
+                if isinstance(response.content, Exception):
+                    if isinstance(response.content, GRPCException):
+                        response.status_code = response.content.code
+                    else:
+                        response.status_code = grpc.StatusCode.INTERNAL
+                    await self.app._error_handler.call_error_handler(response.content, request)
+                    await ctx.send(response)
+                    return b''
+                await ctx.send(response)
                 return response.render()
-        raise GRPCException.unknown(f'Can not handle endpoint: {handler}')
+        raise GRPCException.unknown(f'Can not handle endpoint: {rpc_metadata["handler"]}')
 
-    async def stream_response(self, request_adaptor: RequestAdaptor, handler: Callable):
+    async def stream_response(self, request_adaptor: RequestAdaptor, rpc_metadata: RPCFunctionMetadata):
         """handle stream endpoint"""
         request = request_adaptor.request
         async with self.app.start_request_context(request) as ctx:
-            async for response in self.call_handler(handler):
-                if response is _HasRuntimeErrorRemark:
-                    yield b""
+            async for response in self.call_handler(rpc_metadata, request_adaptor):
                 response = Response(content=response, app=self.app)
-                ctx.send(response)
+                if isinstance(response.content, Exception):
+                    if isinstance(response.content, GRPCException):
+                        response.status_code = response.content.code
+                    else:
+                        response.status_code = grpc.StatusCode.INTERNAL
+                    await self.app._error_handler.call_error_handler(response.content, request)
+                    await ctx.send(response)
+                    yield b''
+                await ctx.send(response)
                 yield response.render()
-        self.app.logger.info(
-            f'Call method success: /{request.package}.{request.service_name}/{request.method_name}')
 
-    async def call_handler(self, handler: Callable):
+    async def call_handler(self, run_metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor):
         """
         At the end of the request context,
         the processing function is called asynchronously,
         which will convert any function into an asynchronous generator
         """
-        if inspect.iscoroutinefunction(handler):
-            run_handler = handler
-        elif inspect.isgeneratorfunction(handler):
-            run_handler = partial(self.s2a.run_generate, gene=handler)
-        elif inspect.iscoroutinefunction(handler):
-            run_handler = handler
-        else:
-            async def _to_async_iter(h):
-                yield await self.s2a.run_function(h)
-
-            run_handler = partial(_to_async_iter, h=handler)
         try:
+            handler = run_metadata['handler']
+            params = self.get_run_handler_args(run_metadata, request_adaptor)
+            if inspect.iscoroutinefunction(handler):
+                # async function
+                async def _to_async_iter(h):
+                    yield await h(**params)
+
+                run_handler = partial(_to_async_iter, h=handler)
+            elif inspect.isgeneratorfunction(handler):
+                # generator
+                run_handler = partial(self.s2a.run_generate, gene=handler, *(params.values()))
+            elif inspect.isasyncgenfunction(handler):
+                run_handler = partial(handler, **params)
+            else:
+                async def _sync_to_async_iter(h):
+                    yield await self.s2a.run_function(h, *(params.values()))
+
+                run_handler = partial(_sync_to_async_iter, h=handler)
             async for response in run_handler():
                 yield response
         except Exception as endpoint_runtime_error:
-            request = Request.current()
-            self.app.logger.exception(endpoint_runtime_error)
             traceback.print_exc()
-            self.app._error_handler.call_error_handler(endpoint_runtime_error, request)
-            self.app.logger.error(
-                f'Call handler error, method: /{request.package}.{request.service_name}/{request.method_name}')
-            yield _HasRuntimeErrorRemark
+            yield endpoint_runtime_error
 
     @staticmethod
     def adapt_request(request: Request, request_data: bytes, context) -> Request:
@@ -168,3 +182,36 @@ class GRPCAdaptor:
         # set grpc context
         request.grpc_context = context
         return request
+
+    @classmethod
+    def get_run_handler_args(cls, metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor):
+        result = {}
+        input_params = metadata['input_param_info']
+        if inspect.isclass(metadata['rpc_service']):
+            # cbv mode
+            rpc_service_class = metadata['rpc_service']
+            service_instance = rpc_service_class()
+            service_instance.__post_init__()  # call post init
+            for index, key in enumerate(input_params.keys()):
+                if index == 0:
+                    result[key] = service_instance
+                    continue
+                param_info = input_params[key]
+                result[key] = cls.transport_request_args(param_info, request_adaptor, key)
+        else:
+            # root service or fbv mode
+            for key in input_params.keys():
+                param_info = input_params[key]
+                result[key] = cls.transport_request_args(param_info, request_adaptor, key)
+        return result
+
+    @staticmethod
+    def transport_request_args(param_info: ParamInfo, request_adaptor: RequestAdaptor, key: str):
+        try:
+            return request_adaptor.request_model(key)
+        except Exception as e:
+            if param_info.optional:
+                return None
+            else:
+                raise GRPCException.invalid_argument(
+                    detail=f"The server can't parse some data for type {param_info.type}") from e

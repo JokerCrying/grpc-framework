@@ -39,7 +39,7 @@ class Serializer:
         self.converter = converter()
 
     def deserialize(self, data: bytes, model_type: TypeT) -> T:
-        transport_obj = self.codec.decode(data, into=getattr(model_type, "__proto_cls__", None))
+        transport_obj = self.codec.decode(data, into=model_type)
         return self.converter.to_model(transport_obj, model_type)
 
     def serialize(self, model: T) -> bytes:

@@ -14,18 +14,15 @@ class Response:
             app: 'GRPCFramework',
             status_code: grpc.StatusCode = grpc.StatusCode.OK,
             metadata: StrDict = None,
-            package: str = None,
-            service_name: str = None,
-            method_name: str = None
     ):
         self._request = Request.current()
         self.app = app
         self.content = content
         self.status_code = status_code
         self.metadata = metadata or {}
-        self.package = package
-        self.service_name = service_name
-        self.method_name = method_name
+        self.package = self._request.package
+        self.service_name = self._request.service_name
+        self.method_name = self._request.method_name
 
     def _set_grpc_metadata(self):
         """call grpc context set trailing metadata"""

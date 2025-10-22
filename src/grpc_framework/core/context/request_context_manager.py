@@ -32,7 +32,7 @@ class RequestContextManager:
             self._after_request_handlers.append(func)
         return func
 
-    async def context(self, request: Request):
+    def context(self, request: Request):
         return AsyncReactiveContext(
             self.on_before_request,
             self.on_after_request,

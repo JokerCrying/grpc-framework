@@ -38,7 +38,7 @@ class ErrorHandler:
         if inspect.iscoroutinefunction(handler):
             return await handler(request, exc)
         else:
-            return self.s2a.run_function(handler, request, exc)
+            return await self.s2a.run_function(handler, request, exc)
 
     @staticmethod
     async def common_error_handler(request: Request, exc: Exception):
