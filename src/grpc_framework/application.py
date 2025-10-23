@@ -152,7 +152,7 @@ class GRPCFramework:
             raise TypeError(f'got an error type when add grpc service, type is {type(svc)}')
         self._services[method_name] = methods
 
-    def load_proto_rpc(self, impl, add_service_func):
+    def load_rpc_stub(self, impl, add_service_func):
         """load a proto rpc service to server, its can compatibility old project in
         your team, asynchronous encoding is recommended
 
