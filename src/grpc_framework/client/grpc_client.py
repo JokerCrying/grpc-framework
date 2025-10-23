@@ -1,5 +1,6 @@
 import enum
-from functools import partial
+from asyncio import timeout
+from functools import partialmethod, partial
 from typing import Optional, Union, Callable, Any, Tuple, Sequence
 from .channel_pool_manager import GRPCChannelPool
 from grpc.aio import Metadata
@@ -68,25 +69,24 @@ class GRPCClient:
         if callable(full_name):
             call_func = full_name
         else:
-            if not request_type:
-                raise ValueError(f'When full_name is of string type, request_type must be passed in')
-            original_call_func = self.make_call_func(full_name, request_type)
+            # make sure has request serializer and response deserializer
             req_ser = request_serializer or self._request_serializer
             assert req_ser is not None and callable(
                 req_ser), 'request serializer is a required fields when full_name type is string, and its can call.'
             res_des = response_deserializer or self._response_deserializer
             assert res_des is not None and callable(
                 res_des), 'response deserializer is a required fields when full_name type is string, and its can call.'
-            call_func = partial(original_call_func,
-                                request_serializer=req_ser,
-                                response_deserializer=res_des)
+            # make final call function
+            target_call_func = self.make_call_func(request_type)
+            call_func = target_call_func(full_name, request_serializer=request_serializer,
+                                         response_deserializer=response_deserializer)
         return call_func(request_data, timeout=self.timeout, metadata=metadata)
 
-    def make_call_func(self, full_name: str, request_type: GRPCRequestType):
+    def make_call_func(self, request_type: GRPCRequestType):
         channel = self.channel_pool_manager.get()
         return getattr(channel, request_type.value)
 
-    unary_unary = partial(call_method, request_type=GRPCRequestType.unary_unary)  # call unary method
-    unary_stream = partial(call_method, request_type=GRPCRequestType.unary_stream)  # call unary stream method
-    stream_unary = partial(call_method, request_type=GRPCRequestType.stream_unary)  # call stream unary method
-    stream_stream = partial(call_method, request_type=GRPCRequestType.stream_stream)  # call stream stream method
+    unary_unary = partialmethod(call_method, request_type=GRPCRequestType.unary_unary)  # call unary method
+    unary_stream = partialmethod(call_method, request_type=GRPCRequestType.unary_stream)  # call unary stream method
+    stream_unary = partialmethod(call_method, request_type=GRPCRequestType.stream_unary)  # call stream unary method
+    stream_stream = partialmethod(call_method, request_type=GRPCRequestType.stream_stream)  # call stream stream method

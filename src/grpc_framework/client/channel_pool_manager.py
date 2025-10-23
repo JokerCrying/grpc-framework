@@ -12,8 +12,6 @@ class GRPCChannelPoolOptions(TypedDict):
     pool_mode: Literal['async', 'default']
     min_size: Optional[int]
     max_size: Optional[int]
-    host: Optional[str]
-    port: Optional[int]
     secure_mode: Optional[bool]
     credit: Optional[grpc.ChannelCredentials]
     maintenance_interval: Optional[int]
@@ -199,19 +197,17 @@ class GRPCChannelPool:
         self._secure_mode = config.get('secure_mode', False)
         self._credit = config.get('credit', None)
         self._channel_options = config.get('channel_options', {})
-        self._host = config.get('host', 'localhost')
-        self._port = config.get('port', 50051)
 
-    def get(self) -> Optional[Union[grpc_aio.Channel, grpc.Channel]]:
+    def get(self, host: str = 'localhost', port: int = 50051) -> Optional[Union[grpc_aio.Channel, grpc.Channel]]:
         """the channel for obtaining the specified service"""
-        key = f"{self._host}:{self._port}"
+        key = f"{host}:{port}"
         # get or create a connection pool
         if key not in self._pools:
             self._pools[key] = self._pool_class(
                 min_size=self._min_size,
                 max_size=self._max_size,
-                host=self._host,
-                port=self._port,
+                host=host,
+                port=port,
                 maintenance_interval=self._maintenance_interval,
                 auto_preheating=self._auto_preheating,
                 secure_mode=self._secure_mode,
