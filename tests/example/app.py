@@ -1,3 +1,4 @@
+import asyncio
 from typing import Callable
 import tests.example_grpc_proto.example_pb2_grpc as example_pb2_grpc
 import tests.example_grpc_proto.example_pb2 as example_pb2
@@ -8,10 +9,12 @@ from tests.example.profile_service import service as profile_service
 
 
 class SimpleService(example_pb2_grpc.SimpleServiceServicer):
-    def GetSimpleResponse(self, reqeust, context):
+    async def GetSimpleResponse(self, reqeust, context):
+        await asyncio.sleep(0.1)
         return example_pb2.SimpleResponse(result='success', success=True, error_message='')
 
-    def StreamResponses(self, request, context):
+    async def StreamResponses(self, request, context):
+        await asyncio.sleep(0.1)
         yield example_pb2.SimpleResponse(result='success', success=True, error_message='')
 
 

@@ -21,7 +21,8 @@ codec = DataclassesCodec
 converter = DataclassesConverter
 
 grpc_options = [
-    ('grpc.max_concurrent_streams', 20000),
+    ('grpc.max_concurrent_streams', 30000),
     ('grpc.so_reuseport', 1),
-    ('grpc.http2.max_frame_size', 4194304)
+    ('grpc.http2.max_frame_size', 8 * 1024 * 1024),
+    ('grpc.http2.enable_zerocopy', 1)
 ]
