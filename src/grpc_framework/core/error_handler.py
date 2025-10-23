@@ -6,7 +6,7 @@ from ..utils import Sync2AsyncUtils
 from ..exceptions import GRPCException
 
 if TYPE_CHECKING:
-    from src.grpc_framework.application import GRPCFramework
+    from ..application import GRPCFramework
 
 
 class ErrorHandler:

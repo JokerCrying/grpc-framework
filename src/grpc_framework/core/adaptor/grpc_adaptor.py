@@ -14,7 +14,7 @@ from ...utils import Sync2AsyncUtils
 from ..service import RPCFunctionMetadata
 
 if TYPE_CHECKING:
-    from src.grpc_framework.application import GRPCFramework
+    from ...application import GRPCFramework
 
 
 class GRPCAdaptor:

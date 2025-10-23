@@ -1,4 +1,4 @@
-from src.grpc_framework.core.enums import Interaction
+from ...core.enums import Interaction
 from typing import Any, TYPE_CHECKING, Optional, Dict
 from ..request.request import Request
 from .domain import StreamRequest

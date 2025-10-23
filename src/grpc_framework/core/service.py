@@ -1,9 +1,9 @@
 import inspect
-from src.grpc_framework.types import OptionalStr
-from src.grpc_framework.core.enums import Interaction
+from ..types import OptionalStr
+from ..core.enums import Interaction
 from typing import TypedDict, Callable, Optional, Type, Union, Dict
-from src.grpc_framework.core.params import ParamInfo, ParamParser
-from src.grpc_framework.core.request.request import Request
+from ..core.params import ParamInfo, ParamParser
+from ..core.request.request import Request
 
 __all__ = [
     'rpc',

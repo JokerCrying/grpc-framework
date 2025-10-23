@@ -18,6 +18,7 @@ from .config import GRPCFrameworkConfig
 from typing import Optional, Type, Union
 from contextvars import ContextVar
 from grpc_reflection.v1alpha import reflection
+from grpc_health.v1 import health_pb2_grpc, health
 
 
 class _EmptyApplication: ...
@@ -191,6 +192,7 @@ class GRPCFramework:
             host and port"""
         self._lifecycle_manager.on_startup(self._register_services_in_service)  # register service to grpc server
         self._lifecycle_manager.on_startup(self._enable_reflection)  # enable service reflection
+        self._lifecycle_manager.on_startup(self._add_health_check)  # add standard health check
         self._lifecycle_manager.on_startup(self._server_start, -1)  # ensure last step is start server
         self._request_context_manager.after_request(self._log_request, -1)  # ensure last step is log success
         try:
@@ -247,6 +249,11 @@ class GRPCFramework:
                     reflection.SERVICE_NAME
                 )
                 reflection.enable_server_reflection(service_names, self._server)
+
+    def _add_health_check(self, _):
+        """add grpc standard health check"""
+        if self.config.add_health_check:
+            self.load_rpc_stub(health.HealthServicer, health_pb2_grpc.add_HealthServicer_to_server)
 
     async def _server_start(self, _):
         """start server in application context last step"""
