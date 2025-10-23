@@ -2,10 +2,10 @@ import abc
 import asyncio
 import inspect
 from typing import Callable, TYPE_CHECKING
+from ..request import Request
 
 if TYPE_CHECKING:
     from ...application import GRPCFramework
-    from ..request import Request
 
 
 class BaseMiddleware(metaclass=abc.ABCMeta):
@@ -13,7 +13,7 @@ class BaseMiddleware(metaclass=abc.ABCMeta):
         self.app = app
 
     @abc.abstractmethod
-    async def dispatch(self, request: 'Request', call_next: Callable):
+    async def dispatch(self, request: Request, call_next: Callable):
         raise NotImplementedError
 
 
