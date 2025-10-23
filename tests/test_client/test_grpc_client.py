@@ -5,21 +5,16 @@ import asyncio
 import unittest
 import tests.example_grpc_proto.example_pb2_grpc as example_pb2_grpc
 import tests.example_grpc_proto.example_pb2 as example_pb2
-from src.grpc_framework.client import GRPCChannelPool, GRPCClient
+from src.grpc_framework.client import GRPCChannelPool, GRPCClient, GRPCChannelPoolOptions
 
 
 class TestGrpcClient(unittest.TestCase):
     def setUp(self):
-        channel_pool = GRPCChannelPool({
-            'min_size': 5,
-            'max_size': 10,
-            'secure_mode': False,
-            'credit': None,
-            'maintenance_interval': 10,
-            'auto_preheating': True,
-            'channel_options': {},
-            'pool_mode': 'async'
-        })
+        channel_pool = GRPCChannelPool(
+            GRPCChannelPoolOptions(
+                pool_mode='async'
+            )
+        )
         self.client = GRPCClient(
             channel_pool_manager=channel_pool,
             request_serializer=lambda x: x,
@@ -97,3 +92,4 @@ class TestGrpcClient(unittest.TestCase):
             print(resp)
 
         asyncio.run(run())
+        print('call stub success'.center(100, '*'))

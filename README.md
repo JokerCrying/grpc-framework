@@ -307,6 +307,54 @@ class Greeter(example_pb2_grpc.GreeterServicer):
 app.load_rpc_stub(Greeter(), example_pb2_grpc.add_GreeterServicer_to_server)
 ```
 
+## Client Support
+
+gRPC Framework provides a client that makes calling gRPC services simple. 
+It supports both calling via generated stubs and by specifying method paths directly. 
+It also includes a gRPC channel pool that supports both async ecosystem channels and default channels.
+
+### Channel Pool Configuration
+
+- pool_mode: Required. Supports `async` and `default` to manage async ecosystem channels and default channels.
+- min_size: Minimum number of connections. Default `10`.
+- max_size: Maximum number of connections. Default `20`.
+- secure_mode: Whether to enable secure mode. Affects channel creation. Default `False`.
+- credit: gRPC credentials. Required when `secure_mode=True`.
+- maintenance_interval: Background task checks channel health at this interval. Default `5` seconds.
+- auto_preheating: Whether to preheat the pool. Default `True`. When enabled, the pool warms up to `min_size` on instantiation.
+- channel_options: Additional channel options.
+
+### Client Usage
+
+```python
+from grpc_framework.client import GRPCChannelPool, GRPCClient, GRPCChannelPoolOptions
+
+grpc_channel_pool = GRPCChannelPool(GRPCChannelPoolOptions(pool_mode='default'))
+
+client = GRPCClient(
+    channel_pool_manager=grpc_channel_pool,
+    host='localhost',
+    port=50051,
+    request_serializer=lambda x: x,
+    response_deserializer=lambda x: x,
+    timeout=5,
+)
+
+# Stub-based call
+import example_pb2_grpc as example_pb2_grpc
+import example_pb2 as example_pb2
+
+request = example_pb2.SimpleRequest(query='1', page_number=1, result_per_page=20)
+channel = client.channel_pool_manager.get()
+impl = example_pb2_grpc.SimpleServiceStub(channel)
+resp = client.call_method(impl.GetSimpleResponse, request)
+print(resp)
+
+# Direct method call
+response = client.call_method('/package.Service/Method', request_data=b'{"name":"jack"}')
+print(response)
+```
+
 ## Roadmap
 
 | Status | Feature                       | Planned Version | Notes       |

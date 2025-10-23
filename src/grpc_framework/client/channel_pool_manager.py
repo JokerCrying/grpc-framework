@@ -5,18 +5,20 @@ import random
 import asyncio
 import threading
 import grpc.aio as grpc_aio
-from typing import Optional, Dict, Set, TypedDict, Any, Literal, Union
+from dataclasses import dataclass
+from typing import Optional, Dict, Set, Any, Literal, Union
 
 
-class GRPCChannelPoolOptions(TypedDict):
+@dataclass
+class GRPCChannelPoolOptions:
     pool_mode: Literal['async', 'default']
-    min_size: Optional[int]
-    max_size: Optional[int]
-    secure_mode: Optional[bool]
-    credit: Optional[grpc.ChannelCredentials]
-    maintenance_interval: Optional[int]
-    auto_preheating: Optional[bool]
-    channel_options: Optional[Dict[str, Any]]
+    min_size: Optional[int] = 10
+    max_size: Optional[int] = 20
+    secure_mode: Optional[bool] = False
+    credit: Optional[grpc.ChannelCredentials] = None
+    maintenance_interval: Optional[int] = 5
+    auto_preheating: Optional[bool] = True
+    channel_options: Optional[Dict[str, Any]] = None
 
 
 class IChannelPool(metaclass=abc.ABCMeta):
@@ -182,21 +184,21 @@ class GRPCChannelPool:
             self,
             config: GRPCChannelPoolOptions
     ):
-        if config['pool_mode'] == 'async':
+        if config.pool_mode == 'async':
             pool_class = AsyncChannelPool
-        elif config['pool_mode'] == 'default':
+        elif config.pool_mode == 'default':
             pool_class = ChannelPool
         else:
             raise ValueError('Only two connection pool modes, async and default, are supported.')
         self._pool_class = pool_class
-        self._min_size = config.get('min_size', 10)
-        self._max_size = config.get('max_size', 20)
-        self._maintenance_interval = config.get('maintenance_interval', 5)
-        self._auto_preheating = config.get('auto_preheating', True)
+        self._min_size = config.min_size or 10
+        self._max_size = config.max_size or 10
+        self._maintenance_interval = config.maintenance_interval or 5
+        self._auto_preheating = config.auto_preheating or True
         self._pools: Dict[str, IChannelPool] = {}
-        self._secure_mode = config.get('secure_mode', False)
-        self._credit = config.get('credit', None)
-        self._channel_options = config.get('channel_options', {})
+        self._secure_mode = config.secure_mode or False
+        self._credit = config.credit or None
+        self._channel_options = config.channel_options or {}
 
     def get(self, host: str = 'localhost', port: int = 50051) -> Optional[Union[grpc_aio.Channel, grpc.Channel]]:
         """the channel for obtaining the specified service"""

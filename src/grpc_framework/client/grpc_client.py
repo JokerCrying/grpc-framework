@@ -1,5 +1,4 @@
 import enum
-from asyncio import timeout
 from functools import partialmethod, partial
 from typing import Optional, Union, Callable, Any, Tuple, Sequence
 from .channel_pool_manager import GRPCChannelPool
@@ -27,6 +26,7 @@ class GRPCClient:
         request_serializer: global request serializer, its will use in call_method's param full_name is string type
         response_deserializer: global response deserializer, its will use in call_method's param full_name is string type
         channel_pool_manager: a channel pool type
+        timeout: request timeout
     """
 
     def __init__(
