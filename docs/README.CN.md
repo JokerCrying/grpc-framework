@@ -6,7 +6,9 @@
 </p>
 
 ---
-**源码地址**: <a href="https://github.com/JokerCrying/grpc-framework" target="_blank">https://github.com/JokerCrying/grpc-framework</a>
+**源码地址**: <a href="https://github.com/JokerCrying/grpc-framework" target="_blank">
+https://github.com/JokerCrying/grpc-framework
+</a>
 ---
 
 gRPC-Framework是一个现代的、兼容性强、更Pythonic的gRPC框架，用于快速搭建gRPC项目和快速编写gRPC API。
@@ -30,9 +32,28 @@ gRPC Framework依赖以下几个库开发:
 
 ## 如何使用
 ```bash
-pip install --upgrade
+pip install --upgrade pip
 pip install grpc-framework
 ```
+
+## 配置
+gRPC Framework使用单独的配置类去配置，他默认支持了YAML、JSON、INI、Python模块，可通过from_module（Python模块）或from_file（配置文件）或直接实例化创建。
+* **<span style="color: red;">*</span>package**: 必填项，它表明了整个grpc应用所运行的包，默认值为grpc，但为grpc时报错。
+* **name**: grpc应用程序名称，默认值为grpc-framework。
+* **version**: grpc应用程序版本号，建议遵循x.x.x(.beta|alpha)规则
+* **host**: grpc应用程序运行地址，若需要运行在全部地址，请使用[::]。
+* **port**: grpc应用程序运行端口，默认值为50051。
+* **serializer**: 应用全局序列化器，他负责组织Codec和Converter处理请求数据。
+* **codec**: 应用全局的Codec，他负责转换请求数据到中间数据，默认为ProtobufCodec。
+* **converter**: 应用全局的Converter，他负责转换中间数据到域模型，默认为ProtobufConverter。
+* **reflection**: 是否启用grpc反射，默认值为False。
+* **app_service_name**: app下函数视图的服务名称，默认为RootService。
+* **executor**: 一个Python的Executor类型，可以是ThreadPoolExecutor，也可以是ProcessPoolExecutor，默认为ThreadPoolExecutor(max_worker=os.cpu_count() * 2 - 1)。
+* **grpc_handlers**: grpc服务可接受的handler类型，默认为None。
+* **interceptors**: grpc服务可接受的拦截器类型，默认为None，但服务加载时会加载一个请求解析拦截器。
+* **grpc_options**: grpc服务器配置，默认为None，会在应用初始化的时候转为空字典。
+* **maximum_concurrent_rpc**: rpc最大请求数，默认为None，表示无限制。
+* **grpc_compression**: grpc服务可接受的压缩类型，默认为None。
 
 ## 序列化器
 gRPC Framework提供了一个序列化器，他接受两个参数，codec和converter，主要职责是转换请求数据，大致流程是：请求数据（HTTP2数据流） <> 中间数据类型 <> 域模型。
@@ -218,8 +239,29 @@ app.add_service(SomeService)
 </details>
 
 
+## 旧项目兼容
+gRPC Framework提供接口可以兼容之前的旧项目，使用protoc编译得到的服务，可以无缝衔接到gRPC Framework，
+但是这样无法使用配置好的请求上下文或中间件，因为只是托管到了应用程序中的服务上，而非完全接管。
+
+### 兼容旧项目例子
+```python
+import example_pb2
+import example_pb2_grpc
+
+
+class Greeter(example_pb2_grpc.GreeterServicer):
+    def say_hello(self, request):
+        return example_pb2.HelloReply(message=f"你好，{request.name}")
+
+app.load_rpc_stub(Greeter(), example_pb2_grpc.add_GreeterServicer_to_server)
+```
+
+
 ## 后续功能清单
-| 状态 | 功能描述 | 预计版本   | 备注  |
-|-----|--|--------|-----|
-| ⬜ | 依赖收集 | v1.1.0 | 未开始 |
-| ⬜ | 多loop支持 | v1.1.0 | 未开始 |
+| 状态 | 功能描述                | 预计版本   | 备注  |
+|-----|---------------------|--------|-----|
+| ⬜ | 依赖收集                | v1.1.0 | 未开始 |
+| ⬜ | 多loop支持             | v1.1.0 | 未开始 |
+| ⬜ | 版本支持                | v1.1.0 | 未开始 |
+| ⬜ | 服务级别codec/converter | v1.2.0 | 未开始 |
+| ⬜ | 服务级别请求上下文           | v1.2.0 | 未开始 |

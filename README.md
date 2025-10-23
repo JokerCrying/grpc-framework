@@ -7,11 +7,13 @@
 
 <p align="center">
 Language：
-<a href="./README.md" target="_self">🌐 [English](en)</a> | <a href="./docs/README.CN.md" target="_self">🇨🇳 [简体中文](/zh/)</a> 
+<a href="./README.md" target="_self">🌐 [English](en)</a> | <a href="./docs/README.CN.md" target="_self">🇨🇳 [简体中文](zh)</a> 
 </p>
 
 ---
-**Source Code**: <a href="https://github.com/JokerCrying/grpc-framework" target="_blank">https://github.com/JokerCrying/grpc-framework</a>
+**Source Code**: <a href="https://github.com/JokerCrying/grpc-framework" target="_blank">
+https://github.com/JokerCrying/grpc-framework
+</a>
 ---
 
 gRPC-Framework is a modern, highly compatible, and more Pythonic gRPC framework for rapidly building gRPC projects and
@@ -57,9 +59,30 @@ gRPC Framework is built using the following libraries:
 ## Installation
 
 ```bash
-pip install --upgrade
+pip install --upgrade pip
 pip install grpc-framework
 ```
+
+## Configuration
+
+gRPC Framework uses a dedicated configuration class and supports YAML, JSON, INI, and Python modules. You can create it via `GRPCFrameworkConfig.from_module`, `GRPCFrameworkConfig.from_file`, or by instantiating directly.
+
+- package: Required. The package name that hosts the gRPC app. Default `grpc` (using exactly `grpc` is not allowed).
+- name: Application name. Default `grpc-framework`.
+- version: Application version, recommended format `x.x.x(.beta|alpha)`.
+- host: Bind address. Use `[::]` to listen on all addresses.
+- port: Service port. Default `50051`.
+- serializer: Global serializer that orchestrates the Codec and Converter to process request data.
+- codec: Global Codec that converts request bytes to transport objects. Default `ProtobufCodec`.
+- converter: Global Converter that converts transport objects to domain models. Default `ProtobufConverter`.
+- reflection: Enable gRPC reflection. Default `False`.
+- app_service_name: Service name for function-based views under the app. Default `RootService`.
+- executor: A Python `Executor` (e.g., `ThreadPoolExecutor` or `ProcessPoolExecutor`). Default `ThreadPoolExecutor(max_workers=os.cpu_count() * 2 - 1)`.
+- grpc_handlers: Additional gRPC handlers. Default `None`.
+- interceptors: gRPC interceptors. Default `None` (a request parsing interceptor is loaded during service setup).
+- grpc_options: gRPC server options. Default `None` (converted to an empty dict during app init).
+- maximum_concurrent_rpc: Max concurrent RPCs. Default `None` (unlimited).
+- grpc_compression: gRPC compression type. Default `None`.
 
 ## Serializer
 
@@ -263,9 +286,33 @@ app.add_service(SomeService)
 
 </details>
 
+## Legacy Compatibility
+
+gRPC Framework provides interfaces to be compatible with legacy projects compiled with protoc, 
+allowing them to be seamlessly hosted within gRPC Framework. 
+However, request context or middleware configured in the framework will not be available, 
+as the legacy service is only hosted rather than fully managed.
+
+### Example
+
+```python
+import example_pb2
+import example_pb2_grpc
+
+
+class Greeter(example_pb2_grpc.GreeterServicer):
+    def say_hello(self, request):
+        return example_pb2.HelloReply(message=f"Hello, {request.name}")
+
+app.load_rpc_stub(Greeter(), example_pb2_grpc.add_GreeterServicer_to_server)
+```
+
 ## Roadmap
 
-| Status | Feature               | Planned Version | Notes       |
-|--------|-----------------------|-----------------|-------------|
-| ⬜      | Dependency collection | v1.1.0          | Not started |
-| ⬜      | Multi-loop support    | v1.1.0          | Not started |
+| Status | Feature                       | Planned Version | Notes       |
+|--------|-------------------------------|-----------------|-------------|
+| ⬜      | Dependency collection         | v1.1.0          | Not started |
+| ⬜      | Multi-loop support            | v1.1.0          | Not started |
+| ⬜      | Version support               | v1.1.0          | Not started |
+| ⬜      | Service-level codec/converter | v1.2.0          | Not started |
+| ⬜      | Service-level request context | v1.2.0          | Not started |
