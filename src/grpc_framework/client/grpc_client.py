@@ -51,6 +51,8 @@ class GRPCClient:
                     request_data: Any,
                     metadata: Optional[MetadataType] = None,
                     request_type: Optional[Union[GRPCRequestType, str]] = None,
+                    host: Optional[str] = None,
+                    port: Optional[int] = None,
                     request_serializer: Callable = None,
                     response_deserializer: Callable = None):
         """call a grpc method
@@ -58,6 +60,8 @@ class GRPCClient:
         Args:
             full_name: a string type or callable type, its can be a stub.FunctionCall or /package.Service/Method
             metadata: grpc metadata type
+            host: function scope host
+            port: function scope port
             request_data: request data, any of type
             request_type: a grpc request type, it is a required fields when full_name type is string type
             request_serializer: function scope request serializer, its will take precedence over the global request serializer
@@ -69,6 +73,8 @@ class GRPCClient:
         if callable(full_name):
             call_func = full_name
         else:
+            final_host = host or self.host
+            final_port = port or self.port
             # make sure has request serializer and response deserializer
             req_ser = request_serializer or self._request_serializer
             assert req_ser is not None and callable(
@@ -77,12 +83,12 @@ class GRPCClient:
             assert res_des is not None and callable(
                 res_des), 'response deserializer is a required fields when full_name type is string, and its can call.'
             # make final call function
-            target_call_func = self.make_call_func(request_type)
+            target_call_func = self.make_call_func(request_type, final_host, final_port)
             call_func = target_call_func(full_name, request_serializer=request_serializer,
                                          response_deserializer=response_deserializer)
         return call_func(request_data, timeout=self.timeout, metadata=metadata)
 
-    def make_call_func(self, request_type: GRPCRequestType):
+    def make_call_func(self, request_type: GRPCRequestType, host: str, port: int):
         channel = self.channel_pool_manager.get()
         return getattr(channel, request_type.value)
 

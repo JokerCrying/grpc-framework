@@ -50,4 +50,7 @@ def app_us_func():
 
 
 if __name__ == '__main__':
+    import winloop
+
+    winloop.install()
     app.run()

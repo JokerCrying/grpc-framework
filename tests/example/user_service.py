@@ -1,5 +1,6 @@
 import uuid
 import random
+import asyncio
 from dataclasses import dataclass
 from src.grpc_framework import Service, unary_unary, unary_stream
 
@@ -18,6 +19,7 @@ class UserCreate:
 class UserService(Service):
     @unary_unary
     async def create_user(self, request: UserCreate):
+        await asyncio.sleep(0.1)  # Simulated IO operation
         return User(id=random.randint(1, 9999), name=request.name)
 
     @unary_stream

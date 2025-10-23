@@ -19,3 +19,9 @@ app_service_name = 'GRPCFrameWorkDemoService'
 codec = DataclassesCodec
 
 converter = DataclassesConverter
+
+grpc_options = [
+    ('grpc.max_concurrent_streams', 20000),
+    ('grpc.so_reuseport', 1),
+    ('grpc.http2.max_frame_size', 4194304)
+]
