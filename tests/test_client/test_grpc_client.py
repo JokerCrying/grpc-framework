@@ -8,7 +8,7 @@ import tests.example_grpc_proto.example_pb2 as example_pb2
 from src.grpc_framework.client import GRPCChannelPool, GRPCClient
 
 
-class UserResults(unittest.TestCase):
+class TestGrpcClient(unittest.TestCase):
     def setUp(self):
         channel_pool = GRPCChannelPool({
             'min_size': 5,
