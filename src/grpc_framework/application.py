@@ -260,7 +260,7 @@ class GRPCFramework:
         run_endpoint = f'{self.config.host}:{self.config.port}'
         self._server.add_insecure_port(run_endpoint)
         await self._server.start()
-        self.logger.info(f'- Server Running in {self.config.host}:{self.config.port}')
+        self.logger.info(f'- The Server `{self.config.name}` Running in {self.config.host}:{self.config.port}')
         try:
             await self._server.wait_for_termination()
         finally:
