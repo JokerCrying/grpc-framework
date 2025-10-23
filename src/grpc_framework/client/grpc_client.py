@@ -89,7 +89,7 @@ class GRPCClient:
         return call_func(request_data, timeout=self.timeout, metadata=metadata)
 
     def make_call_func(self, request_type: GRPCRequestType, host: str, port: int):
-        channel = self.channel_pool_manager.get()
+        channel = self.channel_pool_manager.get(host, port)
         return getattr(channel, request_type.value)
 
     unary_unary = partialmethod(call_method, request_type=GRPCRequestType.unary_unary)  # call unary method
