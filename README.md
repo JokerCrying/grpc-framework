@@ -67,6 +67,35 @@ pip install grpc-framework
 
 gRPC Framework uses a dedicated configuration class and supports YAML, JSON, INI, and Python modules. You can create it via `GRPCFrameworkConfig.from_module`, `GRPCFrameworkConfig.from_file`, or by instantiating directly.
 
+### Instantiate via Config Files or Python Modules
+
+If your project uses YAML, JSON, INI files, or a Python module for configuration, 
+you can build `GRPCFrameworkConfig` with helpers. For other formats (e.g., TOML), 
+register a custom parser via `GRPCFrameworkConfig.add_config_parser`.
+
+- Helpers: `GRPCFrameworkConfig.from_module('config')`, `GRPCFrameworkConfig.from_file('config.yaml')`.
+- Custom parsers: Provide `filetype` and a `parser(filepath, options)` that returns a `Dict[str, Any]`. `options` is `ConfigParserOptions` with `ini_root_name` default.
+
+```python
+from grpc_framework import GRPCFrameworkConfig, ConfigParserOptions
+
+# Using a Python module
+config_from_module = GRPCFrameworkConfig.from_module('config')
+
+# Using a config file
+# Warning: when using from_file, parameters like serializer, codec, converter,
+# executor, grpc_handlers, interceptors, grpc_compression are not supported yet.
+config_from_file = GRPCFrameworkConfig.from_file('config.yaml')
+
+# Add a custom parser (e.g., for TOML)
+def from_toml_file(filepath: str, options: ConfigParserOptions):
+    import tomllib
+    with open(filepath, 'rb') as f:
+        return tomllib.load(f)
+
+GRPCFrameworkConfig.add_config_parser('toml', from_toml_file)
+```
+
 - package: Required. The package name that hosts the gRPC app. Default `grpc` (using exactly `grpc` is not allowed).
 - name: Application name. Default `grpc-framework`.
 - version: Application version, recommended format `x.x.x(.beta|alpha)`.

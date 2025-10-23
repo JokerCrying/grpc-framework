@@ -67,6 +67,32 @@ gRPC Framework使用单独的配置类去配置，他默认支持了YAML、JSON�
 * **maximum_concurrent_rpc**: rpc最大请求数，默认为None，表示无限制。
 * **grpc_compression**: grpc服务可接受的压缩类型，默认为None。
 
+### 通过配置文件或配置包实例化配置
+当然，如果您的项目中采用了配置文件，例如YAML、JSON、INI，或使用python文件定义了配置，可以使用GRPCFrameworkConfig提供的接口去实例化配置。
+如果您的项目中使用了非YAML、JSON、INI文件的配置，gRPC Framework一样提供了方法，您可以通过GRPCFrameworkConfig.add_config_parser去添加一个解析器，
+他接受两个参数
+* **filetype**: 一个文件类型，可能是toml或者其他的类型。
+* **parser**: 解析器，一个可调用类型，他将收到GRPCFrameworkConfig传入的两个参数filepath（文件地址）、
+    options（ConfigParserOptions类型，只有一个默认的ini_root_name），他返回一个Dict[str, Any]类型即可。
+
+```python
+from grpc_framework import GRPCFrameworkConfig, ConfigParserOptions
+
+# 使用python包
+config_from_module = GRPCFrameworkConfig.from_module('config')
+
+# 使用配置文件
+# warning: 这里就不再支持serializer、codec、converter、executor、grpc_handlers、interceptors、grpc_compression等参数了，这将在后续版本支持
+config_from_file = GRPCFrameworkConfig.from_file('config.yaml')
+
+
+# 添加解析器
+def from_toml_file(filepath: str, options: ConfigParserOptions):
+    import tomllib
+    with open(filepath, 'r', encoding='utf-8') as f:
+        return tomllib.load(f)
+```
+
 ## 序列化器
 
 gRPC

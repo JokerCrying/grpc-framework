@@ -1,18 +1,17 @@
 [build-system]
 requires = [
     "setuptools>=61.0",
-    "grpcio>=1.73.1",
-    "grpcio-reflection>=1.73.1",
-    "protobuf>=6.31.1"
+    "wheel"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "grpc-framework"
-version = "0.0.1.beta"
+version = "0.1.0.beta"
 description = "Easy gRPC APIs Framework."
 readme = "README.md"
 requires-python = ">=3.7"
+license = {file = "LICENSE"}
 authors = [
     {name = "surp1us"},
 ]
@@ -29,7 +28,14 @@ classifiers = [
     "Programming Language :: Python :: 3.12"
 ]
 keywords = ["grpc", "framework", "grpcio"]
-dependencies = []
+dependencies = [
+    "grpcio>=1.73.1,<2.0",
+    "grpcio-reflection>=1.73.1,<2.0",
+    "protobuf>=6.31.1,<7.0",
+    "PyYAML>=6.0.3,<7.0",
+    "grpcio-health-checking>=1.73.1,<2.0",
+    "grpcio-tools>=1.73.1,<2.0"
+]
 
 [project.optional-dependencies]
 dev = [
@@ -45,9 +51,9 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/JokerCrying/py-depends-tools"
-Repository = "https://github.com/JokerCrying/py-depends-tools"
-"Bug Tracker" = "https://github.com/JokerCrying/py-depends-tools/issues"
+Homepage = "https://github.com/JokerCrying/grpc-framework"
+Repository = "https://github.com/JokerCrying/grpc-framework"
+"Bug Tracker" = "https://github.com/JokerCrying/grpc-framework/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
