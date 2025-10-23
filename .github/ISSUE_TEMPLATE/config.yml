@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: 📚 Document
-    url: https://github.com/JokerCrying/grpc-framework/blob/main/docs/README.md
+    url: https://github.com/JokerCrying/grpc-framework/blob/master/README.md
     about: Please check the document before asking a question.
   - name: 💬 Community
     url: https://github.com/JokerCrying/grpc-framework/discussions
