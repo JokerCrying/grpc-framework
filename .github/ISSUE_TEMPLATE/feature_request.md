@@ -1,11 +1,10 @@
 ---
 name: "✨ Feature Request"
-description: "Suggest a new idea for the project"
+about: "Suggest a new idea for the project"
 title: "[FEATURE] Some Feature"
 labels: ["enhancement"]
 assignees: []
 ---
-
 ## Description
 Describe the function you hope for clearly and concisely.
 
