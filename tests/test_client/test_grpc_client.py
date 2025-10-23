@@ -3,6 +3,8 @@ import random
 import string
 import asyncio
 import unittest
+import tests.example_grpc_proto.example_pb2_grpc as example_pb2_grpc
+import tests.example_grpc_proto.example_pb2 as example_pb2
 from src.grpc_framework.client import GRPCChannelPool, GRPCClient
 
 
@@ -85,3 +87,13 @@ class UserResults(unittest.TestCase):
 
         asyncio.run(run())
         print('call stream success'.center(100, '*'))
+
+    def test_stub_unary(self):
+        async def run():
+            request = example_pb2.SimpleRequest(query='1', page_number=1, result_per_page=20)
+            channel = self.client.channel_pool_manager.get()
+            impl = example_pb2_grpc.SimpleServiceStub(channel)
+            resp = await self.client.call_method(impl.GetSimpleResponse, request)
+            print(resp)
+
+        asyncio.run(run())

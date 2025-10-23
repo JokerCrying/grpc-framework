@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import example_pb2 as example__pb2
+import tests.example_grpc_proto.example_pb2 as example__pb2
 
 GRPC_GENERATED_VERSION = '1.73.1'
 GRPC_VERSION = grpc.__version__

@@ -1,7 +1,18 @@
+import tests.example_grpc_proto.example_pb2_grpc as example_pb2_grpc
+import tests.example_grpc_proto.example_pb2 as example_pb2
 from dataclasses import dataclass
 from src.grpc_framework import GRPCFramework, GRPCFrameworkConfig
 from tests.example.user_service import UserService
 from tests.example.profile_service import service as profile_service
+
+
+class SimpleService(example_pb2_grpc.SimpleServiceServicer):
+    def GetSimpleResponse(self, reqeust, context):
+        return example_pb2.SimpleResponse(result='success', success=True, error_message='')
+
+    def StreamResponses(self, request, context):
+        yield example_pb2.SimpleResponse(result='success', success=True, error_message='')
+
 
 config = GRPCFrameworkConfig.from_module('tests.example.config')
 
@@ -9,6 +20,7 @@ app = GRPCFramework(config=config)
 
 app.add_service(UserService)
 app.add_service(profile_service)
+app.load_rpc_stub(SimpleService, example_pb2_grpc.add_SimpleServiceServicer_to_server)
 
 
 @dataclass
