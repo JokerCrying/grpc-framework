@@ -58,20 +58,20 @@ class DataclassesConverter(ModelConverter):
         if not isinstance(data, dict):
             raise TypeError(f'Expected dict for single object, got {type(data)}')
         # 创建空的protobuf实例并填充数据
-        return model_type(**data)
+        return model_type(**data)  # Type: Message
 
 
 class JsonConverter(ModelConverter):
     def to_model(self, transport_obj: Any, model_type: JSONType) -> JSONType:
-        return json.loads(transport_obj)
+        return json.loads(transport_obj)  # type: JSONType
 
     def from_model(self, model: JSONType) -> JSONType:
-        return json.dumps(model, ensure_ascii=False, separators=(',', ':'))
+        return json.dumps(model, ensure_ascii=False, separators=(',', ':'))  # type: Union[Dict, List]
 
 
 class ProtobufConverter(ModelConverter):
     def to_model(self, transport_obj: Any, model_type: Type[Message]) -> Message:
-        return model_type.FromString(transport_obj)
+        return model_type.FromString(transport_obj)  # type: Message
 
     def from_model(self, model: Message) -> Any:
-        return model.SerializeToString()
+        return model.SerializeToString()  # type: bytes

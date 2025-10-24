@@ -1,14 +1,15 @@
 import time
+import winloop
 import asyncio
 import unittest
 import tests.example_grpc_proto.example_pb2_grpc as example_pb2_grpc
 import tests.example_grpc_proto.example_pb2 as example_pb2
-import tests.test_pressure.e_pb2 as e_pb2
 from src.grpc_framework.client import GRPCChannelPoolOptions, GRPCChannelPool, GRPCClient
 
 
 class TestPressure(unittest.TestCase):
     def setUp(self):
+        winloop.install()
         channel_pool = GRPCChannelPool(GRPCChannelPoolOptions(
             pool_mode='async'
         ))
@@ -56,7 +57,7 @@ class TestPressure(unittest.TestCase):
     def test_protobuf_codec(self):
         async def request():
             response = await self.client.unary_unary(
-                full_name='/demo.UserService/create_user',
+                full_name='/native.NativeService/run_native',
                 request_data=None
             )
             return response
@@ -69,4 +70,4 @@ class TestPressure(unittest.TestCase):
             print('use time ->', time.time() - start_time, 's')
 
 
-        asyncio.run(request())
+        asyncio.run(run())

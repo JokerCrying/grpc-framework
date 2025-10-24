@@ -19,6 +19,8 @@ class ProtobufCodec(TransportCodec):
         return msg
 
     def encode(self, obj: Message) -> BytesLike:
+        if isinstance(obj, BytesLike):
+            return obj
         return obj.SerializeToString()
 
 
@@ -27,6 +29,8 @@ class JSONCodec(TransportCodec):
         return json.loads(data)
 
     def encode(self, obj: Any) -> BytesLike:
+        if isinstance(obj, BytesLike):
+            return obj
         return json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
 
 
@@ -38,6 +42,8 @@ class ORJSONCodec(TransportCodec):
         return orjson.loads(data)
 
     def encode(self, obj: Any) -> BytesLike:
+        if isinstance(obj, BytesLike):
+            return obj
         return orjson.dumps(obj)
 
 
@@ -51,4 +57,6 @@ class DataclassesCodec(TransportCodec):
         return data
 
     def encode(self, obj: JSONType) -> BytesLike:
+        if isinstance(obj, BytesLike):
+            return obj
         return json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
