@@ -1,9 +1,10 @@
 from .channel_pool_manager import GRPCChannelPool, GRPCChannelPoolOptions
-from .grpc_client import GRPCClient, GRPCRequestType
+from .grpc_client import GRPCClient, GRPCRequestType, EmptyChannelError
 
 __all__ = [
     'GRPCChannelPool',
     'GRPCClient',
     'GRPCRequestType',
-    'GRPCChannelPoolOptions'
+    'GRPCChannelPoolOptions',
+    'EmptyChannelError'
 ]
