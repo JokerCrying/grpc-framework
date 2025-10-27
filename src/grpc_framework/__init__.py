@@ -21,6 +21,8 @@ from .core.service import (
     Service, unary_unary, unary_stream, stream_unary, stream_stream, rpc
 )
 
+from .exceptions import GRPCException
+
 from .core.serialization import (
     Serializer,
     TransportCodec,
@@ -79,5 +81,8 @@ __all__ = [
     'rpc',
 
     # adaptor
-    'StreamRequest'
+    'StreamRequest',
+
+    # exception
+    'GRPCException'
 ]
