@@ -88,8 +88,8 @@ class GRPCClient:
                 res_des), 'response deserializer is a required fields when full_name type is string, and its can call.'
             # make final call function
             target_call_func = self.make_call_func(request_type, final_host, final_port)
-            call_func = target_call_func(full_name, request_serializer=request_serializer,
-                                         response_deserializer=response_deserializer)
+            call_func = target_call_func(full_name, request_serializer=req_ser,
+                                         response_deserializer=res_des)
         return call_func(request_data, timeout=self.timeout, metadata=metadata)
 
     def make_call_func(self, request_type: GRPCRequestType, host: str, port: int):
