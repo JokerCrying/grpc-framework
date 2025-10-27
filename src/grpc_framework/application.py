@@ -15,6 +15,7 @@ from .core.error_handler import ErrorHandler
 from .core.response.response import Response
 from .utils import get_logger
 from .config import GRPCFrameworkConfig
+from .exceptions import GRPCException
 from typing import Optional, Type, Union
 from contextvars import ContextVar
 from grpc_reflection.v1alpha import reflection
@@ -193,6 +194,7 @@ class GRPCFramework:
         self._lifecycle_manager.on_startup(self._register_services_in_service)  # register service to grpc server
         self._lifecycle_manager.on_startup(self._enable_reflection)  # enable service reflection
         self._lifecycle_manager.on_startup(self._add_health_check)  # add standard health check
+        self._lifecycle_manager.on_startup(self._init_error_handler)  # add standard health check
         self._lifecycle_manager.on_startup(self._server_start, -1)  # ensure last step is start server
         self._request_context_manager.after_request(self._log_request, -1)  # ensure last step is log success
         try:
@@ -265,6 +267,11 @@ class GRPCFramework:
             await self._server.wait_for_termination()
         finally:
             await self._server.stop(grace=3)
+
+    async def _init_error_handler(self, _):
+        @self.add_error_handler(GRPCException)
+        async def handler(request, error):
+            return self._error_handler.grpc_error_handler(request, error)
 
     def _log_request(self, response: Response):
         """log request in request context last step"""

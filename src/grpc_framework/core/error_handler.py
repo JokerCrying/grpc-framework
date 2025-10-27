@@ -44,3 +44,8 @@ class ErrorHandler:
     async def common_error_handler(request: Request, exc: Exception):
         request.grpc_context.set_code(grpc.StatusCode.INTERNAL)
         request.grpc_context.set_details(f'Internal Error: {exc}')
+
+    @staticmethod
+    async def grpc_error_handler(request: Request, exc: GRPCException):
+        request.grpc_context.set_code(exc.code)
+        request.grpc_context.set_details(f'Internal Error: {exc.detail}')
