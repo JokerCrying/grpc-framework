@@ -17,6 +17,10 @@ class GRPCRequestType(enum.Enum):
     stream_stream = 'stream_stream'
 
 
+class EmptyChannelError(Exception):
+    pass
+
+
 class GRPCClient:
     """grpc call client
 
@@ -90,6 +94,8 @@ class GRPCClient:
 
     def make_call_func(self, request_type: GRPCRequestType, host: str, port: int):
         channel = self.channel_pool_manager.get(host, port)
+        if channel is None:
+            raise EmptyChannelError('There is no available channel for the time being.')
         return getattr(channel, request_type.value)
 
     unary_unary = partialmethod(call_method, request_type=GRPCRequestType.unary_unary)  # call unary method
