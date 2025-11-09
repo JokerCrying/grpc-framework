@@ -120,8 +120,9 @@ class GRPCAdaptor:
                     await self.app._error_handler.call_error_handler(response.content, request)
                     await ctx.send(response)
                     return b''
+                response_content = response.render()
                 await ctx.send(response)
-                return response.render()
+                return response_content
         raise GRPCException.unknown(f'Can not handle endpoint: {rpc_metadata["handler"]}')
 
     async def stream_response(self, request_adaptor: RequestAdaptor, rpc_metadata: RPCFunctionMetadata):
@@ -138,8 +139,9 @@ class GRPCAdaptor:
                     await self.app._error_handler.call_error_handler(response.content, request)
                     await ctx.send(response)
                     yield b''
+                response_content = response.render()
                 await ctx.send(response)
-                yield response.render()
+                yield response_content
 
     async def call_handler(self, run_metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor):
         """
