@@ -1,4 +1,3 @@
-import grpc
 import inspect
 from functools import partial
 from typing import TYPE_CHECKING, Any
