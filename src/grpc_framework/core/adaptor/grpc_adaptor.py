@@ -1,10 +1,10 @@
 import grpc
 import inspect
-import traceback
 from functools import partial
 from typing import TYPE_CHECKING, Any
 from grpc.aio import ServicerContext
 from .request_adaptor import RequestAdaptor
+from .response_adaptor import ResponseAdaptor
 from ..enums import Interaction
 from ..params import ParamInfo
 from ..request.request import Request
@@ -112,16 +112,13 @@ class GRPCAdaptor:
         async with self.app.start_request_context(request) as ctx:
             async for response in self.call_handler(rpc_metadata, request_adaptor):
                 response = Response(content=response, app=self.app)
-                if isinstance(response.content, Exception):
-                    if isinstance(response.content, GRPCException):
-                        response.status_code = response.content.code
-                    else:
-                        response.status_code = grpc.StatusCode.INTERNAL
-                    await self.app._error_handler.call_error_handler(response.content, request)
-                    await ctx.send(response)
-                    return b''
-                response_content = response.render()
-                await ctx.send(response)
+                response_adaptor = ResponseAdaptor(
+                    app=self.app,
+                    response=response,
+                    request=request,
+                    ctx=ctx
+                )
+                response_content = await response_adaptor.get_response()
                 return response_content
         raise GRPCException.unknown(f'Can not handle endpoint: {rpc_metadata["handler"]}')
 
@@ -131,16 +128,13 @@ class GRPCAdaptor:
         async with self.app.start_request_context(request) as ctx:
             async for response in self.call_handler(rpc_metadata, request_adaptor):
                 response = Response(content=response, app=self.app)
-                if isinstance(response.content, Exception):
-                    if isinstance(response.content, GRPCException):
-                        response.status_code = response.content.code
-                    else:
-                        response.status_code = grpc.StatusCode.INTERNAL
-                    await self.app._error_handler.call_error_handler(response.content, request)
-                    await ctx.send(response)
-                    yield b''
-                response_content = response.render()
-                await ctx.send(response)
+                response_adaptor = ResponseAdaptor(
+                    app=self.app,
+                    response=response,
+                    request=request,
+                    ctx=ctx
+                )
+                response_content = await response_adaptor.get_response()
                 yield response_content
 
     async def call_handler(self, run_metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor):
@@ -171,7 +165,7 @@ class GRPCAdaptor:
             async for response in run_handler():
                 yield response
         except Exception as endpoint_runtime_error:
-            traceback.print_exc()
+            self.app.logger.exception(endpoint_runtime_error)
             yield endpoint_runtime_error
 
     @staticmethod
