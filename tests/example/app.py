@@ -36,6 +36,13 @@ app.add_service(profile_service)
 app.load_rpc_stub(SimpleService, example_pb2_grpc.add_SimpleServiceServicer_to_server)
 
 
+@app.lifecycle
+async def lifec(_app):
+    print(app)
+    yield
+    print('down')
+
+
 @dataclass
 class Domain:
     id: int

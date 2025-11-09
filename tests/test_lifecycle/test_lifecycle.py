@@ -1,8 +1,10 @@
 import asyncio
 import unittest
-from src.grpc_framework.application import GRPCFramework
+from src.grpc_framework.application import GRPCFramework, GRPCFrameworkConfig
 
-app = GRPCFramework()
+app = GRPCFramework(
+    config=GRPCFrameworkConfig(package='111')
+)
 
 
 @app.lifecycle

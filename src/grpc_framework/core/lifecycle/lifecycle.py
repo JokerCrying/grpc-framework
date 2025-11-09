@@ -2,7 +2,7 @@ import inspect
 import asyncio
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Callable, AsyncGenerator, Generator
+from typing import Optional, Callable
 
 
 class LifecycleManager:
@@ -12,6 +12,8 @@ class LifecycleManager:
         self._startup_handlers = []
         self._shutdown_handlers = []
         self._loop = asyncio.get_event_loop()
+        self.is_before_run = False
+        self.is_after_run = False
 
     def on_startup(self, func: Callable, index: Optional[int] = None):
         if index is not None:
@@ -35,18 +37,12 @@ class LifecycleManager:
         self._lifecycle_ctx = asynccontextmanager(func)
 
     async def startup(self, app):
-        for fn in self._startup_handlers:
-            if asyncio.iscoroutinefunction(fn):
-                await fn(app)
-            else:
-                await self._loop.run_in_executor(self.executor, fn, app)
+        await self._run_hooks(app, self._startup_handlers)
+        self.is_before_run = True
 
     async def shutdown(self, app):
-        for fn in reversed(self._shutdown_handlers):
-            if asyncio.iscoroutinefunction(fn):
-                await fn(app)
-            else:
-                await self._loop.run_in_executor(self.executor, fn, app)
+        await self._run_hooks(app, self._shutdown_handlers)
+        self.is_after_run = True
 
     @asynccontextmanager
     async def context(self, app):
@@ -72,3 +68,10 @@ class LifecycleManager:
                 yield item
 
         return wrapper
+
+    async def _run_hooks(self, app, hooks):
+        for fn in reversed(hooks):
+            if asyncio.iscoroutinefunction(fn):
+                await fn(app)
+            else:
+                await self._loop.run_in_executor(self.executor, fn, app)
