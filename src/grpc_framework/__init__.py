@@ -37,7 +37,7 @@ from .core.serialization import (
     DataclassesConverter
 )
 
-__version__ = "0.1.9.beta"
+__version__ = "0.2.0.beta"
 __author__ = "surp1us"
 __description__ = "gRPC framework for Python"
 

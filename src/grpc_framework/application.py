@@ -97,6 +97,8 @@ class GRPCFramework:
         # error handler
         self._error_handler = ErrorHandler(self)
         self.add_error_handler = self._error_handler.add_error_handler
+        # plugin
+        self.plugins = {}  # For subsequent support plugins
         # set context var
         _current_app.set(self)
 
