@@ -38,10 +38,14 @@ app.load_rpc_stub(SimpleService, example_pb2_grpc.add_SimpleServiceServicer_to_s
 
 @app.lifecycle
 async def lifec(_app):
-    print(app)
+    print(app, 'start')
     yield
-    print('down')
+    print(app, 'down')
 
+
+@app.on_shutdown
+async def ttt(app):
+    print('None')
 
 @dataclass
 class Domain:

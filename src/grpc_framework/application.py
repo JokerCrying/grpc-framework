@@ -197,9 +197,12 @@ class GRPCFramework:
         self._lifecycle_manager.on_startup(self._init_error_handler)  # add standard health check
         self._lifecycle_manager.on_startup(self._server_start, -1)  # ensure last step is start server
         self._request_context_manager.after_request(self._log_request, -1)  # ensure last step is log success
+        main_task = self.loop.create_task(self._start())
         try:
-            self.loop.run_until_complete(self._start())
+            self.loop.run_until_complete(main_task)
         except KeyboardInterrupt:
+            main_task.cancel()
+            self.loop.run_until_complete(main_task)
             self.logger.info('- Shutting down server...')
         finally:
             self.loop.close()
@@ -265,8 +268,13 @@ class GRPCFramework:
         self.logger.info(f'- The Server `{self.config.name}` Running in {self.config.host}:{self.config.port}')
         try:
             await self._server.wait_for_termination()
+        except asyncio.CancelledError:
+            pass
         finally:
-            await self._server.stop(grace=3)
+            try:
+                await self._server.stop(None)
+            except asyncio.CancelledError:
+                pass
 
     async def _init_error_handler(self, _):
         @self.add_error_handler(GRPCException)
