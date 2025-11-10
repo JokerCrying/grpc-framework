@@ -70,7 +70,7 @@ class LifecycleManager:
         return wrapper
 
     async def _run_hooks(self, app, hooks):
-        for fn in reversed(hooks):
+        for fn in hooks:
             if asyncio.iscoroutinefunction(fn):
                 await fn(app)
             else:
