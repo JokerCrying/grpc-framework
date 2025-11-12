@@ -22,7 +22,7 @@ class RequestContextManager:
         if index is not None:
             self._before_request_handlers.insert(index, func)
         else:
-            self._before_request_handlers.append(BEFORE_HOOK_TYPE)
+            self._before_request_handlers.append(func)
         return func
 
     def after_request(self, func: AFTER_HOOK_TYPE, index: Optional[int] = None):

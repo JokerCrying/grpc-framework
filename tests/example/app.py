@@ -47,6 +47,12 @@ async def lifec(_app):
 async def ttt(app):
     print('None')
 
+
+@app.before_request
+async def test(request: Request):
+    print(request)
+
+
 @dataclass
 class Domain:
     id: int
