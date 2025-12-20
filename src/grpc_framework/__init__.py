@@ -21,6 +21,8 @@ from .core.service import (
     Service, unary_unary, unary_stream, stream_unary, stream_stream, rpc
 )
 
+from .core.di.depends import Depends
+
 from .exceptions import GRPCException
 
 from .core.serialization import (
@@ -84,5 +86,8 @@ __all__ = [
     'StreamRequest',
 
     # exception
-    'GRPCException'
+    'GRPCException',
+
+    # DI
+    'Depends'
 ]

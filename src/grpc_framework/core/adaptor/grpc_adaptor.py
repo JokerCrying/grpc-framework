@@ -11,6 +11,7 @@ from ..response.response import Response
 from ...exceptions import GRPCException
 from ...utils import Sync2AsyncUtils
 from ..service import RPCFunctionMetadata
+from ..di.depends import Depends
 from concurrent.futures import ThreadPoolExecutor
 
 if TYPE_CHECKING:
@@ -109,35 +110,39 @@ class GRPCAdaptor:
     async def unary_response(self, request_adaptor: RequestAdaptor, rpc_metadata: RPCFunctionMetadata):
         """handle unary endpoint"""
         request = request_adaptor.request
-        async with self.app.start_request_context(request) as ctx:
-            async for response in self.call_handler(rpc_metadata, request_adaptor):
-                response = Response(content=response, app=self.app)
-                response_adaptor = ResponseAdaptor(
-                    app=self.app,
-                    response=response,
-                    request=request,
-                    ctx=ctx
-                )
-                response_content = await response_adaptor.get_response()
-                return response_content
+        async with self.app.dependency_scope() as scope:
+            request.dependency_scope = scope
+            async with self.app.start_request_context(request) as ctx:
+                async for response in self.call_handler(rpc_metadata, request_adaptor, scope):
+                    response = Response(content=response, app=self.app)
+                    response_adaptor = ResponseAdaptor(
+                        app=self.app,
+                        response=response,
+                        request=request,
+                        ctx=ctx
+                    )
+                    response_content = await response_adaptor.get_response()
+                    return response_content
         raise GRPCException.unknown(f'Can not handle endpoint: {rpc_metadata["handler"]}')
 
     async def stream_response(self, request_adaptor: RequestAdaptor, rpc_metadata: RPCFunctionMetadata):
         """handle stream endpoint"""
         request = request_adaptor.request
-        async with self.app.start_request_context(request) as ctx:
-            async for response in self.call_handler(rpc_metadata, request_adaptor):
-                response = Response(content=response, app=self.app)
-                response_adaptor = ResponseAdaptor(
-                    app=self.app,
-                    response=response,
-                    request=request,
-                    ctx=ctx
-                )
-                response_content = await response_adaptor.get_response()
-                yield response_content
+        async with self.app.dependency_scope() as scope:
+            request.dependency_scope = scope
+            async with self.app.start_request_context(request) as ctx:
+                async for response in self.call_handler(rpc_metadata, request_adaptor, scope):
+                    response = Response(content=response, app=self.app)
+                    response_adaptor = ResponseAdaptor(
+                        app=self.app,
+                        response=response,
+                        request=request,
+                        ctx=ctx
+                    )
+                    response_content = await response_adaptor.get_response()
+                    yield response_content
 
-    async def call_handler(self, run_metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor):
+    async def call_handler(self, run_metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor, scope):
         """
         At the end of the request context,
         the processing function is called asynchronously,
@@ -145,7 +150,7 @@ class GRPCAdaptor:
         """
         try:
             handler = run_metadata['handler']
-            params = self.get_run_handler_args(run_metadata, request_adaptor)
+            params = await self.get_run_handler_args(run_metadata, request_adaptor, scope)
             if inspect.iscoroutinefunction(handler):
                 # async function
                 async def _to_async_iter(h):
@@ -180,7 +185,7 @@ class GRPCAdaptor:
         return request
 
     @classmethod
-    def get_run_handler_args(cls, metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor):
+    async def get_run_handler_args(cls, metadata: RPCFunctionMetadata, request_adaptor: RequestAdaptor, scope):
         result = {}
         input_params = metadata['input_param_info']
         if inspect.isclass(metadata['rpc_service']):
@@ -188,22 +193,61 @@ class GRPCAdaptor:
             rpc_service_class = metadata['rpc_service']
             service_instance = rpc_service_class()
             service_instance.__post_init__()  # call post init
+            
+            # Inject dependencies into service instance
+            await cls.inject_service_dependencies(service_instance, scope)
+            
             for index, key in enumerate(input_params.keys()):
                 if index == 0:
                     result[key] = service_instance
                     continue
                 param_info = input_params[key]
-                result[key] = cls.transport_request_args(param_info, request_adaptor, key)
+                result[key] = await cls.transport_request_args(param_info, request_adaptor, key, scope)
         else:
             # root service or fbv mode
             for key in input_params.keys():
                 param_info = input_params[key]
-                result[key] = cls.transport_request_args(param_info, request_adaptor, key)
+                result[key] = await cls.transport_request_args(param_info, request_adaptor, key, scope)
         return result
 
     @staticmethod
-    def transport_request_args(param_info: ParamInfo, request_adaptor: RequestAdaptor, key: str):
+    async def inject_service_dependencies(service_instance: Any, scope):
+        """Inject dependencies into CBV service instance."""
+        # Inspect the service class for annotated dependencies
+        # e.g., db: Depends[DBFactory] or db: DBFactory = Depends(get_db)
+        
+        # We need to look at the class annotations and class attributes
+        cls = service_instance.__class__
+        
+        # 1. Check annotations (for Depends[T])
+        if hasattr(cls, "__annotations__"):
+            for name, annotation in cls.__annotations__.items():
+                # Check if it's Depends[T]
+                origin = getattr(annotation, "__origin__", None)
+                if origin is Depends:
+                    args = getattr(annotation, "__args__", [])
+                    if args:
+                        dep_key = Depends(dependency=args[0])
+                        value = await scope.resolve(dep_key)
+                        setattr(service_instance, name, value)
+        
+        # 2. Check class attributes (for default values = Depends(...))
+        # Note: Class attributes are shared, so we shouldn't modify them on the class.
+        # But we are setting attributes on the *instance*.
+        for name, value in inspect.getmembers(cls):
+            if isinstance(value, Depends):
+                resolved_value = await scope.resolve(value)
+                setattr(service_instance, name, resolved_value)
+
+    @staticmethod
+    async def transport_request_args(param_info: ParamInfo, request_adaptor: RequestAdaptor, key: str, scope):
         try:
+            # Check if the parameter is a dependency
+            if GRPCAdaptor.is_dependency(param_info):
+                # Extract dependency factory or key
+                dep_key = GRPCAdaptor.extract_dependency_key(param_info)
+                return await scope.resolve(dep_key)
+
             return request_adaptor.request_model(key)
         except Exception as e:
             if param_info.optional:
@@ -211,6 +255,39 @@ class GRPCAdaptor:
             else:
                 raise GRPCException.invalid_argument(
                     detail=f"The server can't parse some data for type {param_info.type}") from e
+
+    @staticmethod
+    def is_dependency(param_info: ParamInfo) -> bool:
+        # Check origin type for Depends[T]
+        origin = getattr(param_info.type, "__origin__", None)
+        if origin is Depends:
+            return True
+            
+        # Check Annotated
+        if param_info.annotated_args:
+            for arg in param_info.annotated_args:
+                if isinstance(arg, Depends) or (isinstance(arg, type) and issubclass(arg, Depends)):
+                    return True
+
+        # Check default value
+        if isinstance(param_info.default_value, Depends):
+            return True
+            
+        return False
+
+    @staticmethod
+    def extract_dependency_key(param_info: ParamInfo) -> Any:
+        origin = getattr(param_info.type, "__origin__", None)
+        if origin is Depends:
+            args = getattr(param_info.type, "__args__", [])
+            if args:
+                return Depends(dependency=args[0])
+        
+        # Check default value
+        if isinstance(param_info.default_value, Depends):
+            return param_info.default_value
+
+        return None
 
     def init_s2a(self, executor: ThreadPoolExecutor):
         self.s2a = Sync2AsyncUtils(executor)
