@@ -3,6 +3,7 @@ from typing import Optional, TYPE_CHECKING, Callable, Any, List
 from ...utils import Sync2AsyncUtils, AsyncReactiveContext
 from ..request.request import Request
 from ..response.response import Response
+from concurrent.futures import ThreadPoolExecutor
 
 if TYPE_CHECKING:
     from ...application import GRPCFramework
@@ -14,7 +15,7 @@ AFTER_HOOK_TYPE = Callable[[Response], Any]
 class RequestContextManager:
     def __init__(self, app: 'GRPCFramework'):
         self.app = app
-        self.s2a = Sync2AsyncUtils(self.app.config.executor)
+        self.s2a = None
         self._before_request_handlers: List[BEFORE_HOOK_TYPE] = []
         self._after_request_handlers: List[AFTER_HOOK_TYPE] = []
 
@@ -52,3 +53,6 @@ class RequestContextManager:
                 await call(response)
             else:
                 await self.s2a.run_function(call, response)
+
+    def init_s2a(self, executor: ThreadPoolExecutor):
+        self.s2a = Sync2AsyncUtils(executor)

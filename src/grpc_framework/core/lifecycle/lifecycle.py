@@ -5,15 +5,27 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Callable
 
 
+class SyncToAsyncGeneratorAdapter:
+    def __init__(self, func):
+        self.func = func
+
+    async def __call__(self, *args, **kwargs):
+        for item in self.func(*args, **kwargs):
+            yield item
+
+
 class LifecycleManager:
-    def __init__(self, executor: ThreadPoolExecutor):
+    def __init__(self, executor: Optional[ThreadPoolExecutor]):
         self.executor = executor
-        self._lifecycle_ctx = None
+        self._lifecycle_handler: Optional[Callable] = None
         self._startup_handlers = []
         self._shutdown_handlers = []
-        self._loop = asyncio.get_event_loop()
+        self._loop = None
         self.is_before_run = False
         self.is_after_run = False
+
+    def set_loop(self, loop):
+        self._loop = loop
 
     def on_startup(self, func: Callable, index: Optional[int] = None):
         if index is not None:
@@ -32,9 +44,8 @@ class LifecycleManager:
     def lifecycle(self, func: Callable):
         if not inspect.isasyncgenfunction(func) and not inspect.isgeneratorfunction(func):
             raise ValueError(f'The lifecycle handler must be a generator function or async generator function.')
-        if inspect.isgeneratorfunction(func):
-            func = self.async_iter_wrapper(func)
-        self._lifecycle_ctx = asynccontextmanager(func)
+        self._lifecycle_handler = func
+        return func
 
     async def startup(self, app):
         await self._run_hooks(app, self._startup_handlers)
@@ -46,9 +57,13 @@ class LifecycleManager:
 
     @asynccontextmanager
     async def context(self, app):
-        """最终统一生命周期上下文"""
-        if self._lifecycle_ctx:
-            async with self._lifecycle_ctx(app):
+        if self._lifecycle_handler:
+            target_func = self._lifecycle_handler
+            if inspect.isgeneratorfunction(target_func):
+                target_func = SyncToAsyncGeneratorAdapter(target_func)
+            cm_factory = asynccontextmanager(target_func)
+
+            async with cm_factory(app):
                 await self.startup(app)
                 try:
                     yield
@@ -61,17 +76,13 @@ class LifecycleManager:
             finally:
                 await self.shutdown(app)
 
-    @staticmethod
-    def async_iter_wrapper(func: Callable):
-        async def wrapper(*args, **kwargs):
-            for item in func(*args, **kwargs):
-                yield item
-
-        return wrapper
-
     async def _run_hooks(self, app, hooks):
         for fn in hooks:
             if asyncio.iscoroutinefunction(fn):
                 await fn(app)
             else:
-                await self._loop.run_in_executor(self.executor, fn, app)
+                loop = self._loop or asyncio.get_running_loop()
+                await loop.run_in_executor(self.executor, fn, app)
+
+    def update_executor(self, executor: ThreadPoolExecutor):
+        self.executor = executor

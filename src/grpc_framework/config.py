@@ -2,12 +2,11 @@ import os
 import grpc
 import importlib
 from dataclasses import dataclass
-from typing import Type, Union, Optional, Sequence, Any
+from typing import Type, Union, Optional, Sequence, Any, Literal
 from grpc.aio import ChannelArgumentType
 from .core import Serializer, ProtobufCodec, ProtobufConverter, TransportCodec, ModelConverter
 from .types import FilePath, ModulePath
 from .utils import add_config_parser, parse_config, CONFIG_PARSER_TYPE, ConfigParserOptions
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 
 @dataclass
@@ -42,6 +41,9 @@ class GRPCFrameworkConfig:
         grpc_compression: An element of grpc.compression, e.g.
             grpc.compression.Gzip. This compression algorithm will be used for the
             lifetime of the server unless overridden by set_compression.
+        workers: Start multiple grpc services,
+            and the configuration of 'grpc.so_reuseport=1' will be added to the 'grpc_options' by default,
+            warning: this feature is not available in Windows!
     """
 
     package: str = 'grpc'
@@ -55,12 +57,14 @@ class GRPCFrameworkConfig:
     reflection: bool = False
     add_health_check: bool = False
     app_service_name: str = 'RootService'
-    executor: Union[ThreadPoolExecutor, ProcessPoolExecutor] = ThreadPoolExecutor(max_workers=(os.cpu_count() * 2) - 1)
+    executor_type: Literal['threading', 'process'] = 'threading'
+    execute_workers: int = os.cpu_count() * 2 - 1
     grpc_handlers: Optional[Sequence[grpc.GenericRpcHandler]] = None
     interceptors: Optional[Sequence[grpc.ServerInterceptor]] = None
     grpc_options: Optional[ChannelArgumentType] = None
     maximum_concurrent_rpc: Optional[int] = None
     grpc_compression: Optional[grpc.Compression] = None
+    workers: int = 1
 
     @classmethod
     def from_file(cls, filename: FilePath, options: ConfigParserOptions = None) -> 'GRPCFrameworkConfig':
@@ -98,3 +102,7 @@ class GRPCFrameworkConfig:
     def __post_init__(self):
         if self.package == 'grpc':
             raise ValueError("Can not be 'grpc' value when initialize GRPCFrameworkConfig, set a other value please.")
+        if self.workers < 1:
+            raise ValueError("The number of workers started is at least 1.")
+        if self.execute_workers < 1:
+            raise ValueError("The number of execute_workers started is at least 1.")

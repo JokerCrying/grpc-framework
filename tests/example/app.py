@@ -1,3 +1,4 @@
+import os
 import asyncio
 from typing import Callable
 import tests.example_grpc_proto.example_pb2_grpc as example_pb2_grpc
@@ -22,6 +23,8 @@ class LoggerMiddleware(BaseMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         print('received the request ->', request)
+        print('current pid', os.getpid())
+        print('current ppid', os.getppid())
         return await call_next(request)
 
 
@@ -44,7 +47,7 @@ async def lifec(_app):
 
 
 @app.on_shutdown
-async def ttt(app):
+async def ttt(_app):
     print('None')
 
 
@@ -70,7 +73,4 @@ def app_us_func():
 
 
 if __name__ == '__main__':
-    import winloop
-
-    winloop.install()
     app.run()

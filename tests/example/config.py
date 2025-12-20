@@ -26,3 +26,5 @@ grpc_options = [
     ('grpc.http2.max_frame_size', 8 * 1024 * 1024),
     ('grpc.http2.enable_zerocopy', 1)
 ]
+
+workers = 4

@@ -1,7 +1,9 @@
+import os
 import grpc
 import logging
 import inspect
 import asyncio
+import multiprocessing
 import grpc.aio as grpc_aio
 from .core import Service, RPCFunctionMetadata
 from .core.enums import Interaction
@@ -20,6 +22,7 @@ from typing import Optional, Type, Union
 from contextvars import ContextVar
 from grpc_reflection.v1alpha import reflection
 from grpc_health.v1 import health_pb2_grpc, health
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 
 class _EmptyApplication: ...
@@ -51,29 +54,25 @@ class GRPCFramework:
             self,
             config: Optional[GRPCFrameworkConfig] = None
     ):
-        self.loop = asyncio.get_event_loop()
+        # Removing that definition will be fetched when the worker starts
+        # self.loop = asyncio.get_event_loop()
         self.logger = get_logger('grpc-framework', logging.INFO)
         self.config = config or GRPCFrameworkConfig()
         self._services = {
             self.config.app_service_name: {}
         }
         # make interceptors
-        server_interceptors = [
+        self._server_interceptors = [
             RequestContextInterceptor(self)
         ]
         if self.config.interceptors is not None:
-            server_interceptors.extend(self.config.interceptors)
+            self._server_interceptors.extend(self.config.interceptors)
         # make grpc aio server
-        self._server = grpc_aio.server(
-            migration_thread_pool=self.config.executor,
-            handlers=self.config.grpc_handlers,
-            interceptors=server_interceptors,
-            options=self.config.grpc_options,
-            maximum_concurrent_rpcs=self.config.maximum_concurrent_rpc,
-            compression=self.config.grpc_compression
-        )
+        self._server: Optional[grpc_aio.Server] = None
+        # temporarily rpc stub
+        self._pending_rpc_stub = []
         # lifecycle manager
-        self._lifecycle_manager = LifecycleManager(self.config.executor)
+        self._lifecycle_manager = LifecycleManager(None)
         self.on_startup = self._lifecycle_manager.on_startup
         self.on_shutdown = self._lifecycle_manager.on_shutdown
         self.lifecycle = self._lifecycle_manager.lifecycle
@@ -168,16 +167,20 @@ class GRPCFramework:
             will add impl to server
         :return: None
         """
-        add_service_func(impl(), self._server)
+        self._pending_rpc_stub.append((impl, add_service_func))
+
+    def _register_legacy_stubs(self, _):
+        for impl, add_service_fun in self._pending_rpc_stub:
+            add_service_fun(impl(), self._server)
 
     async def dispatch(self, request, context):
         """call middleware chain when a request context"""
         return await self._middleware_manager.dispatch(request, context)
 
-    def find_endpoint(self, pkg: str, svc: str, method: str) -> RPCFunctionMetadata:
+    def find_endpoint(self, _: str, svc: str, method: str) -> RPCFunctionMetadata:
         """find grpc endpoint
 
-        :param pkg: grpc package
+        :param _: grpc package
         :param svc: service name
         :param method: method name
         :return: a grpc function metadata, its store endpoint metadata
@@ -191,23 +194,29 @@ class GRPCFramework:
         return method_meta
 
     def run(self):
-        """run server, its will call application context, server will run in config
-            host and port"""
-        self._lifecycle_manager.on_startup(self._register_services_in_service)  # register service to grpc server
-        self._lifecycle_manager.on_startup(self._enable_reflection)  # enable service reflection
-        self._lifecycle_manager.on_startup(self._add_health_check)  # add standard health check
-        self._lifecycle_manager.on_startup(self._init_error_handler)  # add standard health check
-        self._lifecycle_manager.on_startup(self._server_start, -1)  # ensure last step is start server
-        self._request_context_manager.after_request(self._log_request, -1)  # ensure last step is log success
-        main_task = self.loop.create_task(self._start())
+        if self.config.workers <= 1:
+            self._run_single_worker()
+            return
+        self.logger.info(f'Starting Server with {self.config.workers} workers.')
+        processes = []
         try:
-            self.loop.run_until_complete(main_task)
+            for _ in range(self.config.workers):
+                p = multiprocessing.Process(
+                    target=self._run_single_worker,
+                    args=()
+                )
+                p.start()
+                processes.append(p)
+            for p in processes:
+                p.join()
         except KeyboardInterrupt:
-            main_task.cancel()
-            self.loop.run_until_complete(main_task)
-            self.logger.info('- Shutting down server...')
-        finally:
-            self.loop.close()
+            self.logger.info('- Shutting down workers...')
+            for p in processes:
+                if p.is_alive():
+                    p.terminate()
+            for p in processes:
+                p.join()
+            self.logger.info('- All workers stopped.')
 
     async def _start(self):
         """call application context"""
@@ -267,7 +276,7 @@ class GRPCFramework:
         run_endpoint = f'{self.config.host}:{self.config.port}'
         self._server.add_insecure_port(run_endpoint)
         await self._server.start()
-        self.logger.info(f'- The Server `{self.config.name}` Running in {self.config.host}:{self.config.port}')
+        self.logger.info(f'- The Server `{self.config.name}` (PID: {os.getpid()}) Running in {run_endpoint}')
         try:
             await self._server.wait_for_termination()
         except asyncio.CancelledError:
@@ -291,6 +300,73 @@ class GRPCFramework:
             logger_level = 'info'
         getattr(self.logger, logger_level)(
             f'Call method code={response.status_code}: /{response.package}.{response.service_name}/{response.method_name}')
+
+    def _build_runtime(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        _current_app.set(self)
+        options = list(self.config.grpc_options or [])
+        if self.config.workers > 1:
+            for opt in options:
+                if opt[0] == 'grpc.so_reuseport':
+                    if opt[1] != 1:
+                        raise ValueError('When multi-worker is enabled, set `grpc.so_reuseport` to 1.')
+                    break
+            else:
+                options.append(('grpc.so_reuseport', 1))
+        runtime_executor = self._make_execute()
+        self._lifecycle_manager.update_executor(runtime_executor)
+        self._lifecycle_manager.set_loop(self.loop)
+        self._request_context_manager.init_s2a(runtime_executor)
+        self._adaptor.init_s2a(runtime_executor)
+        self._error_handler.init_s2a(runtime_executor)
+        self._server = grpc_aio.server(
+            migration_thread_pool=runtime_executor,
+            handlers=self.config.grpc_handlers,
+            interceptors=self._server_interceptors,  # 使用之前存好的拦截器列表
+            options=options,
+            maximum_concurrent_rpcs=self.config.maximum_concurrent_rpc,
+            compression=self.config.grpc_compression
+        )
+
+    def _run_single_worker(self):
+        self._build_runtime()
+        self._lifecycle_manager.on_startup(self._register_services_in_service)
+        self._lifecycle_manager.on_startup(self._register_legacy_stubs)
+        self._lifecycle_manager.on_startup(self._enable_reflection)
+        self._lifecycle_manager.on_startup(self._add_health_check)
+        self._lifecycle_manager.on_startup(self._init_error_handler)
+        self._lifecycle_manager.on_startup(self._server_start, -1)
+        self._request_context_manager.after_request(self._log_request, -1)
+        main_task = self.loop.create_task(self._start())
+        try:
+            self.logger.info(f'Worker process [{os.getpid()}] started.')
+            self.loop.run_until_complete(main_task)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            # 子进程只需要处理任务取消，不需要打印 "Shutting down" (由主进程统一管理日志更好)
+            pass
+        finally:
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            self.loop.close()
+
+    def _make_execute(self):
+        if self.config.executor_type == 'threading':
+            executor_type = ThreadPoolExecutor
+        elif self.config.executor_type == 'process':
+            executor_type = ProcessPoolExecutor
+        else:
+            raise ValueError('The config `executor_type` only in value range `threading` or `process`.')
+        return executor_type(max_workers=self.config.execute_workers)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if 'logger' in state:
+            state.pop('logger')
+        return state
+
+    def __setstate__(self, state):
+        state['logger'] = get_logger('grpc-framework', logging.INFO)
+        self.__dict__.update(state)
 
     def __repr__(self):
         return f'<gRPC Framework name={self.config.name}>'

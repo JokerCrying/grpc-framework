@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Dict, Callable, Type, Any
 from .request.request import Request
 from ..utils import Sync2AsyncUtils
 from ..exceptions import GRPCException
+from concurrent.futures import ThreadPoolExecutor
 
 if TYPE_CHECKING:
     from ..application import GRPCFramework
@@ -15,9 +16,7 @@ class ErrorHandler:
         self._error_handlers: Dict[Type[Exception], Callable[[Request, Exception], Any]] = {
             GRPCException: self.common_error_handler
         }
-        self.s2a = Sync2AsyncUtils(
-            self.app.config.executor
-        )
+        self.s2a = None
 
     def add_error_handler(self, exc_type: Type[Exception]):
         """add a handler for handle exception with exception type"""
@@ -49,3 +48,6 @@ class ErrorHandler:
     async def grpc_error_handler(request: Request, exc: GRPCException):
         request.grpc_context.set_code(exc.code)
         request.grpc_context.set_details(f'Internal Error: {exc.detail}')
+
+    def init_s2a(self, executor: ThreadPoolExecutor):
+        self.s2a = Sync2AsyncUtils(executor)

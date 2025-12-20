@@ -11,6 +11,7 @@ from ..response.response import Response
 from ...exceptions import GRPCException
 from ...utils import Sync2AsyncUtils
 from ..service import RPCFunctionMetadata
+from concurrent.futures import ThreadPoolExecutor
 
 if TYPE_CHECKING:
     from ...application import GRPCFramework
@@ -25,7 +26,7 @@ class GRPCAdaptor:
 
     def __init__(self, app: 'GRPCFramework'):
         self.app = app
-        self.s2a = Sync2AsyncUtils(self.app.config.executor)
+        self.s2a = None
 
     def wrap_unary_unary_handler(self, rpc_metadata: RPCFunctionMetadata):
         """wrap unary_unary endpoint"""
@@ -210,3 +211,6 @@ class GRPCAdaptor:
             else:
                 raise GRPCException.invalid_argument(
                     detail=f"The server can't parse some data for type {param_info.type}") from e
+
+    def init_s2a(self, executor: ThreadPoolExecutor):
+        self.s2a = Sync2AsyncUtils(executor)
