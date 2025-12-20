@@ -15,6 +15,7 @@ from .core.adaptor import GRPCAdaptor
 from .core.params import ParamParser
 from .core.error_handler import ErrorHandler
 from .core.response.response import Response
+from .core.di.container import DependencyContainer, DependencyScope
 from .utils import get_logger
 from .config import GRPCFrameworkConfig
 from .exceptions import GRPCException
@@ -98,8 +99,15 @@ class GRPCFramework:
         self.add_error_handler = self._error_handler.add_error_handler
         # plugin
         self.plugins = {}  # For subsequent support plugins
+        # depends container
+        self.container = DependencyContainer()
+        self.register_depends = self.container.register
         # set context var
         _current_app.set(self)
+
+    def dependency_scope(self) -> DependencyScope:
+        """Get a dependency scope context manager."""
+        return self.container.scope(self._adaptor.s2a)
 
     def method(self, request_interaction: Interaction, response_interaction: Interaction):
         """register an endpoint to root service

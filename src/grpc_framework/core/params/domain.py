@@ -14,6 +14,7 @@ class ParamInfo:
     union_types: Optional[List[Type]] = field(default=None)
     generic_args: Optional[List[Type]] = field(default=None)
     annotated_args: Optional[List[Any]] = field(default=None)
+    default_value: Any = field(default=None)
 
     def from_value(self, value: Any) -> Any:
         """
@@ -37,7 +38,8 @@ class ParamInfo:
                         optional=self.optional,
                         union_types=self.union_types,
                         generic_args=self.generic_args,
-                        annotated_args=self.annotated_args
+                        annotated_args=self.annotated_args,
+                        default_value=self.default_value
                     ).from_value(value)
 
         # 处理List类型
@@ -49,7 +51,8 @@ class ParamInfo:
                     optional=self.optional,
                     union_types=self.union_types,
                     generic_args=self.generic_args,
-                    annotated_args=self.annotated_args
+                    annotated_args=self.annotated_args,
+                    default_value=self.default_value
                 ).from_value(item)
                 for item in value
             ]
@@ -63,14 +66,16 @@ class ParamInfo:
                     optional=self.optional,
                     union_types=self.union_types,
                     generic_args=self.generic_args,
-                    annotated_args=self.annotated_args
+                    annotated_args=self.annotated_args,
+                    default_value=self.default_value
                 ).from_value(k):
                     ParamInfo(
                         type=val_type,
                         optional=self.optional,
                         union_types=self.union_types,
                         generic_args=self.generic_args,
-                        annotated_args=self.annotated_args
+                        annotated_args=self.annotated_args,
+                        default_value=self.default_value
                     ).from_value(v)
                 for k, v in value.items()
             }
@@ -83,7 +88,8 @@ class ParamInfo:
                     optional=self.optional,
                     union_types=self.union_types,
                     generic_args=self.generic_args,
-                    annotated_args=self.annotated_args
+                    annotated_args=self.annotated_args,
+                    default_value=self.default_value
                 ).from_value(val)
                 for val, typ in zip(value, get_args(target_type))
             )
@@ -101,7 +107,8 @@ class ParamInfo:
                             optional=self.optional,
                             union_types=self.union_types,
                             generic_args=self.generic_args,
-                            annotated_args=self.annotated_args
+                            annotated_args=self.annotated_args,
+                            default_value=self.default_value
                         ).from_value(value[field_name])
                 return target_type(**kwargs)
 
@@ -133,7 +140,8 @@ class ParamInfo:
                             optional=self.optional,
                             union_types=self.union_types,
                             generic_args=self.generic_args,
-                            annotated_args=self.annotated_args
+                            annotated_args=self.annotated_args,
+                            default_value=self.default_value
                         ).from_value(value[param_name])
                 return target_type(**kwargs)
 

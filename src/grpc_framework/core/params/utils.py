@@ -29,7 +29,10 @@ class ParamParser:
 
         for name, param in signature.parameters.items():
             param_type = type_hints.get(name, Any)
-            params[name] = ParamParser._parse_type(param_type)
+            # Check default value: func(dep: T = Depends(factory))
+            default_value = param.default if param.default is not inspect.Parameter.empty else None
+            
+            params[name] = ParamParser._parse_type(param_type, default_value)
 
         return params
 
@@ -41,14 +44,15 @@ class ParamParser:
         return ParamParser._parse_type(return_type)
 
     @staticmethod
-    def _parse_type(type_: Type) -> ParamInfo:
+    def _parse_type(type_: Type, default_value: Any = None) -> ParamInfo:
         """Parse a single type and return an instance of ParamInfo"""
         return ParamInfo(
             type=type_,
             optional=ParamParser._is_optional(type_),
             union_types=ParamParser._get_union_types(type_),
             generic_args=ParamParser._get_generic_args(type_),
-            annotated_args=ParamParser._get_annotated_args(type_)
+            annotated_args=ParamParser._get_annotated_args(type_),
+            default_value=default_value
         )
 
     @staticmethod
