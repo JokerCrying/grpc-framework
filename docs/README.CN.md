@@ -59,8 +59,8 @@ gRPC Framework使用单独的配置类去配置，他默认支持了YAML、JSON�
 * **converter**: 应用全局的Converter，他负责转换中间数据到域模型，默认为ProtobufConverter。
 * **reflection**: 是否启用grpc反射，默认值为False。
 * **app_service_name**: app下函数视图的服务名称，默认为RootService。
-* **executor**: 一个Python的Executor类型，可以是ThreadPoolExecutor，也可以是ProcessPoolExecutor，默认为ThreadPoolExecutor(
-  max_worker=os.cpu_count() * 2 - 1)。
+* **executor_type**: 'threading'或者'process', 这是为了兼容多worker模式下自动创建对应worker的执行器，在worker维度中只会创建一个，且全周期应用
+* **execute_workers**: worker维度下执行器最大执行者数量，默认为CPU核心 * 2 - 1
 * **grpc_handlers**: grpc服务可接受的handler类型，默认为None。
 * **interceptors**: grpc服务可接受的拦截器类型，默认为None，但服务加载时会加载一个请求解析拦截器。
 * **grpc_options**: grpc服务器配置，默认为None，会在应用初始化的时候转为空字典。
@@ -92,6 +92,113 @@ def from_toml_file(filepath: str, options: ConfigParserOptions):
     with open(filepath, 'r', encoding='utf-8') as f:
         return tomllib.load(f)
 ```
+
+## 依赖注入 (Dependency Injection)
+
+gRPC Framework 引入了现代化的依赖注入系统（类似 FastAPI），让依赖管理变得简单直观。
+
+### 核心特性
+
+* **声明式注入**: 通过 `Depends` 在函数参数或类属性中声明依赖。
+* **作用域管理**: 默认支持 Request Scope，确保同一请求内依赖只被实例化一次。
+* **资源管理**: 支持 `yield` 语法的生成器依赖，自动处理资源的初始化（Setup）和清理（Teardown），如数据库连接。
+* **多级嵌套**: 依赖本身可以拥有其他依赖，框架会自动解析并构建依赖树。
+
+### 使用示例
+
+#### 1. 函数视图中的依赖注入
+
+```python
+from grpc_framework import Depends
+
+# 定义依赖
+def get_db():
+    return "FakeDBConnection"
+
+# 在 Handler 中注入
+@app.unary_unary
+async def get_user(user_id: int, db: str = Depends(get_db)):
+    return {"id": user_id, "db_status": db}
+```
+
+#### 2. 资源清理 (Setup/Teardown)
+
+```python
+async def get_db_session():
+    print("Connecting DB...")
+    db = "Session"
+    yield db
+    print("Closing DB...")
+
+@app.unary_unary
+async def query_data(db: str = Depends(get_db_session)):
+    return {"data": "ok"}
+```
+
+#### 3. 类视图中的依赖注入
+
+```python
+class UserService(Service):
+    # 方式A: 属性注入
+    db: str = Depends(get_db)
+
+    @unary_unary
+    async def get_info(self):
+        return {"db": self.db}
+
+    # 方式B: 方法参数注入
+    @unary_unary
+    async def update_info(self, db: str = Depends(get_db)):
+        return {"db": db}
+```
+
+#### 4. 基于类型的注入与全局注册
+
+除了直接传递函数，你还可以使用类型来声明依赖。结合全局容器注册，可以实现更优雅的依赖管理。
+
+```python
+class RedisConnect:
+    def __init__(self):
+        self.host = "localhost"
+
+# 1. 全局注册依赖 (通常在应用启动时配置)
+# 将 RedisConnect 类型注册为它自己（也可以注册为工厂函数）
+app.container.register(RedisConnect, RedisConnect)
+
+# 2. 使用 Depends[Type] 进行注入
+# 框架会自动从容器中查找 RedisConnect 对应的 Provider
+@app.unary_unary
+async def use_redis(redis: Depends[RedisConnect]):
+    return {"redis_host": redis.host}
+```
+
+## 多 Workers 模式
+
+为了突破 Python GIL 的限制并充分利用多核 CPU，框架支持多进程 Worker 模式。
+
+### 开启方式
+
+在配置中设置 `workers` 参数大于 1 即可：
+
+```python
+# config.py
+workers = 4  # 建议设置为 CPU 核心数
+```
+
+或者在代码中：
+
+```python
+config = GRPCFrameworkConfig(workers=4)
+app = GRPCFramework(config=config)
+```
+
+### 核心优势
+
+* **高性能**: 利用 `SO_REUSEPORT` 特性，多个进程监听同一端口，由操作系统内核自动负载均衡。
+* **高吞吐**: 在高并发场景下，吞吐量可提升数倍（接近 Go 语言性能）。
+* **隔离性**: 每个 Worker 进程独立运行，互不干扰，稳定性更高。
+
+> **注意**: 多 Workers 模式依赖操作系统的 `SO_REUSEPORT` 特性，目前仅支持 Linux 和 macOS 环境，Windows 环境下将回退到单进程模式。
 
 ## 序列化器
 

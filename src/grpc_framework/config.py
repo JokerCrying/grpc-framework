@@ -25,7 +25,9 @@ class GRPCFrameworkConfig:
         reflection: is a reflection interface needed
         add_health_check: is add standard grpc health check service needed
         app_service_name: set a service name for use app fbv mode.
-        executor: global thread pool executor, it will also be applied in the `migration_thread_pool` parameter of `grpc.aio.server`
+        executor_type: 'threading' or 'process', This is to be compatible with the automatic creation of the corresponding worker in multi-worker mode,
+            and only one will be created in the worker dimension, and it will be applied in the full cycle
+        execute_workers: The maximum number of executors in the worker dimension is CPU cores * 2 - 1 by default
         grpc_handlers: An optional list of GenericRpcHandlers used for executing RPCs.
             More handlers may be added by calling add_generic_rpc_handlers any time
             before the server is started.

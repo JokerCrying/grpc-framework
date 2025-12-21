@@ -111,12 +111,120 @@ GRPCFrameworkConfig.add_config_parser('toml', from_toml_file)
 - converter: Global Converter that converts transport objects to domain models. Default `ProtobufConverter`.
 - reflection: Enable gRPC reflection. Default `False`.
 - app_service_name: Service name for function-based views under the app. Default `RootService`.
-- executor: A Python `Executor` (e.g., `ThreadPoolExecutor` or `ProcessPoolExecutor`). Default `ThreadPoolExecutor(max_workers=os.cpu_count() * 2 - 1)`.
+- executor_type: 'threading' or 'process', this is to automatically create the corresponding worker in multi-worker mode, and only one will be created in the worker dimension, and it will be applied in the full cycle
+- execute_workers: The maximum number of executors in the worker dimension is CPU cores * 2 - 1 by default
 - grpc_handlers: Additional gRPC handlers. Default `None`.
 - interceptors: gRPC interceptors. Default `None` (a request parsing interceptor is loaded during service setup).
 - grpc_options: gRPC server options. Default `None` (converted to an empty dict during app init).
 - maximum_concurrent_rpc: Max concurrent RPCs. Default `None` (unlimited).
 - grpc_compression: gRPC compression type. Default `None`.
+
+## Dependency Injection
+
+gRPC Framework introduces a modern dependency injection system (inspired by FastAPI), making dependency management simple and intuitive.
+
+### Core Features
+
+* **Declarative Injection**: Declare dependencies using `Depends` in function parameters or class attributes.
+* **Scope Management**: Defaults to Request Scope, ensuring dependencies are instantiated only once per request.
+* **Resource Management**: Supports generator dependencies with `yield` syntax, automatically handling resource initialization (Setup) and cleanup (Teardown), such as database connections.
+* **Nested Dependencies**: Dependencies can have their own dependencies, and the framework automatically resolves and builds the dependency tree.
+
+### Examples
+
+#### 1. Injection in Function-Based Views
+
+```python
+from grpc_framework import Depends
+
+# Define a dependency
+def get_db():
+    return "FakeDBConnection"
+
+# Inject into Handler
+@app.unary_unary
+async def get_user(user_id: int, db: str = Depends(get_db)):
+    return {"id": user_id, "db_status": db}
+```
+
+#### 2. Resource Cleanup (Setup/Teardown)
+
+```python
+async def get_db_session():
+    print("Connecting DB...")
+    db = "Session"
+    yield db
+    print("Closing DB...")
+
+@app.unary_unary
+async def query_data(db: str = Depends(get_db_session)):
+    return {"data": "ok"}
+```
+
+#### 3. Injection in Class-Based Views
+
+```python
+class UserService(Service):
+    # Method A: Attribute Injection
+    db: str = Depends(get_db)
+
+    @unary_unary
+    async def get_info(self):
+        return {"db": self.db}
+
+    # Method B: Parameter Injection
+    @unary_unary
+    async def update_info(self, db: str = Depends(get_db)):
+        return {"db": db}
+```
+
+#### 4. Type-Based Injection & Global Registration
+
+Besides passing functions directly, you can declare dependencies using types. Combined with global container registration, this enables elegant dependency management.
+
+```python
+class RedisConnect:
+    def __init__(self):
+        self.host = "localhost"
+
+# 1. Register dependency globally (usually during app startup)
+# Register RedisConnect type as itself (can also be a factory function)
+app.container.register(RedisConnect, RedisConnect)
+
+# 2. Inject using Depends[Type]
+# The framework automatically looks up the Provider for RedisConnect from the container
+@app.unary_unary
+async def use_redis(redis: Depends[RedisConnect]):
+    return {"redis_host": redis.host}
+```
+
+## Multi-Worker Mode
+
+To overcome the limitations of the Python GIL and fully utilize multi-core CPUs, the framework supports multi-process Worker mode.
+
+### How to Enable
+
+Simply set the `workers` parameter to greater than 1 in the configuration:
+
+```python
+# config.py
+workers = 4  # Recommended to set to the number of CPU cores
+```
+
+Or in code:
+
+```python
+config = GRPCFrameworkConfig(workers=4)
+app = GRPCFramework(config=config)
+```
+
+### Key Advantages
+
+* **High Performance**: Leverages `SO_REUSEPORT` to allow multiple processes to listen on the same port, with load balancing handled automatically by the OS kernel.
+* **High Throughput**: In high-concurrency scenarios, throughput can increase significantly (approaching Go performance).
+* **Isolation**: Each Worker process runs independently, ensuring higher stability without interference.
+
+> **Note**: Multi-Worker mode relies on the operating system's `SO_REUSEPORT` feature. Currently, it is only supported on Linux and macOS. On Windows, it will fallback to single-process mode.
 
 ## Serializer
 
