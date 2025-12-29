@@ -2,6 +2,7 @@ from .logger import get_logger, logger
 from .config_parser import add_config_parser, parse_config, CONFIG_PARSER_TYPE, ConfigParserOptions
 from .sync2async_utils import Sync2AsyncUtils
 from .reactive_context import ReactiveContext, AsyncReactiveContext
+from .symbol_by_name import symbol_by_name
 
 __all__ = [
     # logger
@@ -19,5 +20,8 @@ __all__ = [
 
     # reactive context
     'ReactiveContext',
-    'AsyncReactiveContext'
+    'AsyncReactiveContext',
+
+    # Dynamically import
+    'symbol_by_name'
 ]

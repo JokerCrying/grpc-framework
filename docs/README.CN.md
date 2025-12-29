@@ -82,7 +82,7 @@ from grpc_framework import GRPCFrameworkConfig, ConfigParserOptions
 config_from_module = GRPCFrameworkConfig.from_module('config')
 
 # 使用配置文件
-# warning: 这里就不再支持serializer、codec、converter、executor、grpc_handlers、interceptors、grpc_compression等参数了，这将在后续版本支持
+# Tips: 如果需要传入'serializer', 'codec', 'converter'参数，请使用'python_module.python_file:class/func'的格式编写
 config_from_file = GRPCFrameworkConfig.from_file('config.yaml')
 
 
@@ -467,7 +467,7 @@ print(response)
 
 | 状态 | 功能描述                | 预计版本   | 备注  |
 |----|---------------------|--------|-----|
-| ⬜  | 依赖收集                | v1.1.0 | 未开始 |
+| ✅  | 依赖收集                | v1.1.0 | 未开始 |
 | ⬜  | 多loop支持             | v1.1.0 | 未开始 |
 | ⬜  | 版本支持                | v1.1.0 | 未开始 |
 | ⬜  | 服务级别codec/converter | v1.2.0 | 未开始 |

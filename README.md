@@ -70,16 +70,18 @@ pip install grpc-framework
 
 ## Configuration
 
-gRPC Framework uses a dedicated configuration class and supports YAML, JSON, INI, and Python modules. You can create it via `GRPCFrameworkConfig.from_module`, `GRPCFrameworkConfig.from_file`, or by instantiating directly.
+gRPC Framework uses a dedicated configuration class and supports YAML, JSON, INI, and Python modules. You can create it
+via `GRPCFrameworkConfig.from_module`, `GRPCFrameworkConfig.from_file`, or by instantiating directly.
 
 ### Instantiate via Config Files or Python Modules
 
-If your project uses YAML, JSON, INI files, or a Python module for configuration, 
-you can build `GRPCFrameworkConfig` with helpers. For other formats (e.g., TOML), 
+If your project uses YAML, JSON, INI files, or a Python module for configuration,
+you can build `GRPCFrameworkConfig` with helpers. For other formats (e.g., TOML),
 register a custom parser via `GRPCFrameworkConfig.add_config_parser`.
 
 - Helpers: `GRPCFrameworkConfig.from_module('config')`, `GRPCFrameworkConfig.from_file('config.yaml')`.
-- Custom parsers: Provide `filetype` and a `parser(filepath, options)` that returns a `Dict[str, Any]`. `options` is `ConfigParserOptions` with `ini_root_name` default.
+- Custom parsers: Provide `filetype` and a `parser(filepath, options)` that returns a `Dict[str, Any]`. `options` is
+  `ConfigParserOptions` with `ini_root_name` default.
 
 ```python
 from grpc_framework import GRPCFrameworkConfig, ConfigParserOptions
@@ -88,15 +90,18 @@ from grpc_framework import GRPCFrameworkConfig, ConfigParserOptions
 config_from_module = GRPCFrameworkConfig.from_module('config')
 
 # Using a config file
-# Warning: when using from_file, parameters like serializer, codec, converter,
-# executor, grpc_handlers, interceptors, grpc_compression are not supported yet.
+
+# Tips: If you need to pass in the 'serializer', 'codec', 'converter' parameters, 
+# write it in the format 'python_module.python_file:class/func'
 config_from_file = GRPCFrameworkConfig.from_file('config.yaml')
+
 
 # Add a custom parser (e.g., for TOML)
 def from_toml_file(filepath: str, options: ConfigParserOptions):
     import tomllib
     with open(filepath, 'rb') as f:
         return tomllib.load(f)
+
 
 GRPCFrameworkConfig.add_config_parser('toml', from_toml_file)
 ```
@@ -111,7 +116,8 @@ GRPCFrameworkConfig.add_config_parser('toml', from_toml_file)
 - converter: Global Converter that converts transport objects to domain models. Default `ProtobufConverter`.
 - reflection: Enable gRPC reflection. Default `False`.
 - app_service_name: Service name for function-based views under the app. Default `RootService`.
-- executor_type: 'threading' or 'process', this is to automatically create the corresponding worker in multi-worker mode, and only one will be created in the worker dimension, and it will be applied in the full cycle
+- executor_type: 'threading' or 'process', this is to automatically create the corresponding worker in multi-worker
+  mode, and only one will be created in the worker dimension, and it will be applied in the full cycle
 - execute_workers: The maximum number of executors in the worker dimension is CPU cores * 2 - 1 by default
 - grpc_handlers: Additional gRPC handlers. Default `None`.
 - interceptors: gRPC interceptors. Default `None` (a request parsing interceptor is loaded during service setup).
@@ -121,14 +127,17 @@ GRPCFrameworkConfig.add_config_parser('toml', from_toml_file)
 
 ## Dependency Injection
 
-gRPC Framework introduces a modern dependency injection system (inspired by FastAPI), making dependency management simple and intuitive.
+gRPC Framework introduces a modern dependency injection system (inspired by FastAPI), making dependency management
+simple and intuitive.
 
 ### Core Features
 
 * **Declarative Injection**: Declare dependencies using `Depends` in function parameters or class attributes.
 * **Scope Management**: Defaults to Request Scope, ensuring dependencies are instantiated only once per request.
-* **Resource Management**: Supports generator dependencies with `yield` syntax, automatically handling resource initialization (Setup) and cleanup (Teardown), such as database connections.
-* **Nested Dependencies**: Dependencies can have their own dependencies, and the framework automatically resolves and builds the dependency tree.
+* **Resource Management**: Supports generator dependencies with `yield` syntax, automatically handling resource
+  initialization (Setup) and cleanup (Teardown), such as database connections.
+* **Nested Dependencies**: Dependencies can have their own dependencies, and the framework automatically resolves and
+  builds the dependency tree.
 
 ### Examples
 
@@ -137,9 +146,11 @@ gRPC Framework introduces a modern dependency injection system (inspired by Fast
 ```python
 from grpc_framework import Depends
 
+
 # Define a dependency
 def get_db():
     return "FakeDBConnection"
+
 
 # Inject into Handler
 @app.unary_unary
@@ -155,6 +166,7 @@ async def get_db_session():
     db = "Session"
     yield db
     print("Closing DB...")
+
 
 @app.unary_unary
 async def query_data(db: str = Depends(get_db_session)):
@@ -180,16 +192,19 @@ class UserService(Service):
 
 #### 4. Type-Based Injection & Global Registration
 
-Besides passing functions directly, you can declare dependencies using types. Combined with global container registration, this enables elegant dependency management.
+Besides passing functions directly, you can declare dependencies using types. Combined with global container
+registration, this enables elegant dependency management.
 
 ```python
 class RedisConnect:
     def __init__(self):
         self.host = "localhost"
 
+
 # 1. Register dependency globally (usually during app startup)
 # Register RedisConnect type as itself (can also be a factory function)
 app.container.register(RedisConnect, RedisConnect)
+
 
 # 2. Inject using Depends[Type]
 # The framework automatically looks up the Provider for RedisConnect from the container
@@ -200,7 +215,8 @@ async def use_redis(redis: Depends[RedisConnect]):
 
 ## Multi-Worker Mode
 
-To overcome the limitations of the Python GIL and fully utilize multi-core CPUs, the framework supports multi-process Worker mode.
+To overcome the limitations of the Python GIL and fully utilize multi-core CPUs, the framework supports multi-process
+Worker mode.
 
 ### How to Enable
 
@@ -220,11 +236,14 @@ app = GRPCFramework(config=config)
 
 ### Key Advantages
 
-* **High Performance**: Leverages `SO_REUSEPORT` to allow multiple processes to listen on the same port, with load balancing handled automatically by the OS kernel.
-* **High Throughput**: In high-concurrency scenarios, throughput can increase significantly (approaching Go performance).
+* **High Performance**: Leverages `SO_REUSEPORT` to allow multiple processes to listen on the same port, with load
+  balancing handled automatically by the OS kernel.
+* **High Throughput**: In high-concurrency scenarios, throughput can increase significantly (approaching Go
+  performance).
 * **Isolation**: Each Worker process runs independently, ensuring higher stability without interference.
 
-> **Note**: Multi-Worker mode relies on the operating system's `SO_REUSEPORT` feature. Currently, it is only supported on Linux and macOS. On Windows, it will fallback to single-process mode.
+> **Note**: Multi-Worker mode relies on the operating system's `SO_REUSEPORT` feature. Currently, it is only supported
+> on Linux and macOS. On Windows, it will fallback to single-process mode.
 
 ## Serializer
 
@@ -430,9 +449,9 @@ app.add_service(SomeService)
 
 ## Legacy Compatibility
 
-gRPC Framework provides interfaces to be compatible with legacy projects compiled with protoc, 
-allowing them to be seamlessly hosted within gRPC Framework. 
-However, request context or middleware configured in the framework will not be available, 
+gRPC Framework provides interfaces to be compatible with legacy projects compiled with protoc,
+allowing them to be seamlessly hosted within gRPC Framework.
+However, request context or middleware configured in the framework will not be available,
 as the legacy service is only hosted rather than fully managed.
 
 ### Example
@@ -446,13 +465,14 @@ class Greeter(example_pb2_grpc.GreeterServicer):
     def say_hello(self, request):
         return example_pb2.HelloReply(message=f"Hello, {request.name}")
 
+
 app.load_rpc_stub(Greeter(), example_pb2_grpc.add_GreeterServicer_to_server)
 ```
 
 ## Client Support
 
-gRPC Framework provides a client that makes calling gRPC services simple. 
-It supports both calling via generated stubs and by specifying method paths directly. 
+gRPC Framework provides a client that makes calling gRPC services simple.
+It supports both calling via generated stubs and by specifying method paths directly.
 It also includes a gRPC channel pool that supports both async ecosystem channels and default channels.
 
 ### Channel Pool Configuration
@@ -463,7 +483,8 @@ It also includes a gRPC channel pool that supports both async ecosystem channels
 - secure_mode: Whether to enable secure mode. Affects channel creation. Default `False`.
 - credit: gRPC credentials. Required when `secure_mode=True`.
 - maintenance_interval: Background task checks channel health at this interval. Default `5` seconds.
-- auto_preheating: Whether to preheat the pool. Default `True`. When enabled, the pool warms up to `min_size` on instantiation.
+- auto_preheating: Whether to preheat the pool. Default `True`. When enabled, the pool warms up to `min_size` on
+  instantiation.
 - channel_options: Additional channel options.
 
 ### Client Usage
@@ -501,7 +522,7 @@ print(response)
 
 | Status | Feature                       | Planned Version | Notes       |
 |--------|-------------------------------|-----------------|-------------|
-| ⬜      | Dependency collection         | v1.1.0          | Not started |
+| ✅      | Dependency collection         | v1.1.0          | Not started |
 | ⬜      | Multi-loop support            | v1.1.0          | Not started |
 | ⬜      | Version support               | v1.1.0          | Not started |
 | ⬜      | Service-level codec/converter | v1.2.0          | Not started |

@@ -6,7 +6,13 @@ from typing import Type, Union, Optional, Sequence, Any, Literal
 from grpc.aio import ChannelArgumentType
 from .core import Serializer, ProtobufCodec, ProtobufConverter, TransportCodec, ModelConverter
 from .types import FilePath, ModulePath
-from .utils import add_config_parser, parse_config, CONFIG_PARSER_TYPE, ConfigParserOptions
+from .utils import (
+    add_config_parser,
+    parse_config,
+    CONFIG_PARSER_TYPE,
+    ConfigParserOptions,
+    symbol_by_name
+)
 
 
 @dataclass
@@ -77,6 +83,11 @@ class GRPCFrameworkConfig:
         filetype = filename.split('.')[-1]
         config = parse_config(filetype, filename, options)
         annotations = cls.__annotations__.keys()
+        for k, v in config.items():
+            if k not in annotations:
+                continue
+            if k in ('serializer', 'codec', 'converter'):
+                config[k] = symbol_by_name(v)
         return cls(**{
             k: v
             for k, v in config.items()
