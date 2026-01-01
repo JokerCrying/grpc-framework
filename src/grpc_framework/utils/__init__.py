@@ -3,6 +3,8 @@ from .config_parser import add_config_parser, parse_config, CONFIG_PARSER_TYPE, 
 from .sync2async_utils import Sync2AsyncUtils
 from .reactive_context import ReactiveContext, AsyncReactiveContext
 from .symbol_by_name import symbol_by_name
+from .proto_generator import ProtoGenerator, generate_proto
+
 
 __all__ = [
     # logger
@@ -23,5 +25,9 @@ __all__ = [
     'AsyncReactiveContext',
 
     # Dynamically import
-    'symbol_by_name'
+    'symbol_by_name',
+
+    # Proto Generator
+    'ProtoGenerator',
+    'generate_proto'
 ]
